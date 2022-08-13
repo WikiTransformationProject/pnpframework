@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using PnPCore = PnP.Core.Model.SharePoint;
 
 namespace PnP.Framework.Provisioning.ObjectHandlers
@@ -481,6 +482,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                             break;
                     }
 
+                    // key is web part instance ID, value ist the web part
+                    var inlineImageWebParts = new Dictionary<string, PnPCore.IPageWebPart>();
+                    // item1 is the text web part, item 2 is the referenced inline image web part instance ID
+                    var textWebPartsReferencingInlineImages = new List<(PnPCore.IPageText, string)>();
+
                     // Add controls to the section
                     if (section.Controls.Any())
                     {
@@ -503,6 +509,19 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                 {
                                     var textProperty = control.ControlProperties.First();
                                     textControl.Text = parser.ParseString(textProperty.Value);
+
+                                    // search text for inline web part references
+                                    var pattern = @"data-instance-id[ ]?=[ ]?\""([\w]{8}-[\w]{4}-[\w]{4}-[\w]{4}-[\w]{12})\""";
+                                    var matches = Regex.Matches(textControl.Text, pattern);
+                                    for (var i = 0; i < matches.Count; i++)
+                                    {
+                                        var match = matches[i];
+                                        if (match.Success && match.Groups.Count == 2)
+                                        {
+                                            var inlineImageWebPartInstanceId = match.Groups[1].Value;
+                                            textWebPartsReferencingInlineImages.Add((textControl, inlineImageWebPartInstanceId));
+                                        }
+                                    }
                                 }
                                 else
                                 {
@@ -666,6 +685,12 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                                 myWebPart.InstanceId = instanceId;
                                             }
                                         }
+
+                                        // inline image; need to set RichTextEditorInstanceId after generating text web part
+                                        if (json["properties"]?["isInlineImage"]?.Value<bool>() ?? false)
+                                        {
+                                            inlineImageWebParts.Add(myWebPart.InstanceId.ToString(), myWebPart);
+                                        }
                                     }
 
                                     // Reduce column number by 1 due 0 start indexing
@@ -719,7 +744,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
 
                                     PnPCore.IPageWebPart myWebPart = page.NewWebPart();
                                     myWebPart.Order = control.Order;
-                                    
+
 
                                     if (!string.IsNullOrEmpty(control.JsonControlData))
                                     {
@@ -758,6 +783,15 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                             }
                         }
                     }
+                    foreach (var inlineImageWebPart in inlineImageWebParts)
+                    {
+                        var textWebPartReferencingInlineImage = textWebPartsReferencingInlineImages.Where(o => o.Item2.Equals(inlineImageWebPart.Key)).FirstOrDefault();
+                        if (null != textWebPartReferencingInlineImage.Item1)
+                        {
+                            var o = inlineImageWebPart.Value as object;
+                            o.GetType().GetProperty("RichTextEditorInstanceId").SetValue(o, textWebPartReferencingInlineImage.Item1.InstanceId.ToString(), null);
+                        }
+                    }
                 }
             }
 
@@ -774,7 +808,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     }
 
                     // Clear existing header controls as they'll be overwritten
-                    page.HeaderControls.Clear();                    
+                    page.HeaderControls.Clear();
 
                     // Load existing available controls
                     var componentsToAdd = page.AvailablePageComponents();
@@ -850,7 +884,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
 
             // Load the page list item
             var fileAfterSave = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-            web.Context.Load(fileAfterSave, p=>p.ListItemAllFields);
+            web.Context.Load(fileAfterSave, p => p.ListItemAllFields);
             web.Context.ExecuteQueryRetry();
 
             // Update page content type
