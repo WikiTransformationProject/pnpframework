@@ -654,7 +654,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                         {
                             // when updating fields of modern client side pages UpdateOverwriteVersion throws this error: "Additions to this Web site have been blocked."
                             // so use SystemUpdate instead
-                            item.SystemUpdate();
+                            item.UpdateOverwriteVersion();
                         }
                         else
                         {
