@@ -1,4 +1,5 @@
 ﻿using Microsoft.SharePoint.Client;
+using Microsoft.SharePoint.News.DataModel;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using PnP.Core.Services;
@@ -308,9 +309,13 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             url = UrlUtility.Combine(web.ServerRelativeUrl, url);
 
             var exists = true;
+
+            Microsoft.SharePoint.Client.File file = null;
+            // see https://github.com/pnp/pnpframework/issues/724 about the broken page issue that sometimes creates pages missing basic field values like ClientSideApplicationId
+            bool isBrokenPage = false;
             try
             {
-                var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
+                file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
                 web.Context.Load(file);
                 web.Context.ExecuteQueryRetry();
             }
@@ -345,8 +350,38 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         page = web.LoadClientSidePage(pageName);
                     }
 
-                    // Clear the page
-                    page.ClearPage();
+                    // normally the page can be gotten when the file exists; but there seem to be rare cases of broken pages were basic field values are missing, see https://github.com/pnp/pnpframework/issues/724
+                    // these broken pages are detected here with the hope to fix them by re-populating those fields (ultimately via Page.SaveAsync)
+                    var isPotentiallyBrokenPage = exists && null != file && null == page;
+                    if (isPotentiallyBrokenPage)
+                    {
+                        var item = file.ListItemAllFields;
+                        // broken page; try to fix it
+                        web.Context.Load(item);
+                        web.Context.ExecuteQueryRetry();
+                        var allCheckedFieldsAreMissingOrEmpty = true;
+                        // arbitrarily chosen fields to take as indicator of broken pages - if those are empty the page is most likely broken
+                        var checkForEmpty = new string[] { "ClientSideApplicationId", "Title", "PageLayoutType" };
+                        foreach (var checkField in checkForEmpty)
+                        {
+                            if (item.FieldValues.ContainsKey(checkField) && !string.IsNullOrEmpty(item.FieldValues[checkField]?.ToString()))
+                            {
+                                allCheckedFieldsAreMissingOrEmpty = false;
+                                break;
+                            }
+                        }
+                        if (allCheckedFieldsAreMissingOrEmpty)
+                        {
+                            isBrokenPage = true;
+                        }
+                    }
+
+                    // this check is only here for broken pages where aceesing the null page would throw
+                    if (null != page)
+                    {
+                        // Clear the page
+                        page.ClearPage();
+                    }
                 }
                 else
                 {
@@ -354,9 +389,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     return;
                 }
             }
-            else
+            
+            if (!exists || isBrokenPage)
             {
                 // Create new client side page
+                // OR for broken pages: re-populate all missing basic fields as well
                 page = web.AddClientSidePage(pageName);
             }
 
