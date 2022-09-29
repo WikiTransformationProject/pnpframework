@@ -306,6 +306,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                             {
                                 string replacementVal = m.Groups["token"].Value;
                                 var tokenParts = replacementVal.Trim(new char[] { '{', '}' }).Split(':');
+                                if (tokenParts.Length < 2)
+                                {
+                                    continue;
+                                }
 
                                 Guid UniqueId = Guid.Empty;
                                 try
