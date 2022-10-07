@@ -867,16 +867,55 @@ namespace Microsoft.SharePoint.Client
                 // Find next part of the path
                 var folderCollection = currentFolder.Folders;
                 folderCollection.Context.Load(folderCollection);
-                await folderCollection.Context.ExecuteQueryRetryAsync();
-
                 Folder nextFolder = null;
-                foreach (Folder existingFolder in folderCollection)
+                bool hitListViewThreshold = false;
+                try
                 {
-                    //WebUtility.UrlDecode removes + from folderName which leads to invalid compare if folderName was not UrlEncoded --> replaced with Uri.UnescapeDatastring
-                    if (string.Equals(existingFolder.Name, Uri.UnescapeDataString(folderName), StringComparison.InvariantCultureIgnoreCase) || string.Equals(existingFolder.Name, folderName, StringComparison.InvariantCultureIgnoreCase))
+                    await folderCollection.Context.ExecuteQueryRetryAsync(); // this will throw when list view threshold is reached
+                } catch (ServerException ex)
+                {
+                    // ===================================================================================================================================
+                    // == this handles the list view threshold being hit with > 5000 folders; should fix https://github.com/pnp/pnpframework/issues/234 ==
+                    // == one question though... why isn't this the standard way to detect if a folder exists? why iterate all child folders? encoding-related stuff? ...
+                    if (!ex.ServerErrorTypeName.Equals("Microsoft.SharePoint.SPQueryThrottledException"))
                     {
-                        nextFolder = existingFolder;
-                        break;
+                        throw;
+                    }
+                    if (locationType != "List")
+                    {
+                        // currently don't support non-list as code below depends on folderCollection being loaded
+                        throw;
+                    }
+
+                    hitListViewThreshold = true;
+                    var folderPath = ResourcePath.FromDecodedUrl(UrlUtility.Combine(listUrl, string.Join("/", childFolderNames, 0, currentCount)));
+                    try
+                    {
+                        nextFolder = web.GetFolderByServerRelativePath(folderPath);
+                        nextFolder.EnsureProperties(f => f.Exists); // this will throw if the folder does not exist
+                        // nextFolder.Exists should never be false here (because getting the propery for a non-existing folder throws), but check anyway
+                        if (!nextFolder.Exists)
+                        {
+                            nextFolder = null;
+                        }
+                    } catch
+                    {
+                        // folder does not exist
+                        nextFolder = null;
+                    }
+                    // ===================================================================================================================================
+                }
+
+                if (null == nextFolder && !hitListViewThreshold)
+                {
+                    foreach (Folder existingFolder in folderCollection)
+                    {
+                        //WebUtility.UrlDecode removes + from folderName which leads to invalid compare if folderName was not UrlEncoded --> replaced with Uri.UnescapeDatastring
+                        if (string.Equals(existingFolder.Name, Uri.UnescapeDataString(folderName), StringComparison.InvariantCultureIgnoreCase) || string.Equals(existingFolder.Name, folderName, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            nextFolder = existingFolder;
+                            break;
+                        }
                     }
                 }
 
