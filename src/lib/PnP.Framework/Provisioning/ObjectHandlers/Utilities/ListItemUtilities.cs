@@ -306,7 +306,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                             {
                                 string replacementVal = m.Groups["token"].Value;
                                 var tokenParts = replacementVal.Trim(new char[] { '{', '}' }).Split(':');
-                                if (tokenParts.Length < 2)
+                                // note: checking for empty tokenParts[1] because this would retrun an actual folder below, which would be an error
+                                if (tokenParts.Length < 2 || string.IsNullOrWhiteSpace(tokenParts[1]))
                                 {
                                     continue;
                                 }
