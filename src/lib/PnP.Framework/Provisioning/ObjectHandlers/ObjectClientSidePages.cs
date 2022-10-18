@@ -825,8 +825,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         var textWebPartReferencingInlineImage = textWebPartsReferencingInlineImages.Where(o => o.Item2.Equals(inlineImageWebPart.Key)).FirstOrDefault();
                         if (null != textWebPartReferencingInlineImage.Item1)
                         {
-                            var o = inlineImageWebPart.Value as object;
-                            o.GetType().GetProperty("RichTextEditorInstanceId").SetValue(o, textWebPartReferencingInlineImage.Item1.InstanceId.ToString(), null);
+                            //var o = inlineImageWebPart.Value as object;
+                            //o.GetType().GetProperty("RichTextEditorInstanceId").SetValue(o, textWebPartReferencingInlineImage.Item1.InstanceId.ToString(), null);
+                            inlineImageWebPart.Value.RichTextEditorInstanceId = textWebPartReferencingInlineImage.Item1.InstanceId.ToString();
                         }
                     }
                 }
