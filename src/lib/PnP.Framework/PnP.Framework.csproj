@@ -230,7 +230,6 @@
 		<!-- Required -->
 		<PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.18.4" />
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
-		<PackageReference Include="AngleSharp" Version="0.14.0" />
 		<PackageReference Include="AngleSharp.Css" Version="0.14.2" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="3.3.1">
@@ -273,6 +272,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\..\..\..\AngleSharp\src\AngleSharp\AngleSharp.Core.csproj" />
 	  <ProjectReference Include="..\..\..\..\pnpcore\src\sdk\PnP.Core\PnP.Core.csproj" />
 	</ItemGroup>
 
