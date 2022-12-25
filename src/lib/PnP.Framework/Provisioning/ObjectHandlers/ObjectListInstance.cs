@@ -27,7 +27,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
     internal class ObjectListInstance : ObjectHandlerBase
     {
         private readonly FieldAndListProvisioningStepHelper.Step step;
-
+        
         public override string Name
         {
 #if DEBUG
@@ -166,6 +166,23 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     }
 
                     #endregion Fields
+
+                    #region Audience Targeting
+                    foreach (var listInfo in processedLists)
+                    {
+                        if (listInfo.TemplateList.EnableClassicAudienceTargeting)
+                        {
+                            listInfo.SiteList.EnableClassicAudienceTargeting();
+                        }
+
+                        if (listInfo.TemplateList.EnableAudienceTargeting)
+                        {
+                            listInfo.SiteList.EnableModernAudienceTargeting();
+                        }
+                    }
+
+                    #endregion
+
 
                     // We stop here unless we reached the last provisioning stop of the list
                     if (step == FieldAndListProvisioningStepHelper.Step.ListSettings)
@@ -2524,7 +2541,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     list = ExtractInformationRightsManagement(web, siteList, list, creationInfo, template);
 
                     list = ExtractPropertyBagEntries(siteList, list);
-
+                                        
                     if (baseTemplateList != null)
                     {
                         // do we plan to extract items from this list?
@@ -2742,7 +2759,6 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     {
                         if (field.InternalName == "Editor"
                             || field.InternalName == "Author"
-                            || field.InternalName == "Title"
                             || field.InternalName == "ID"
                             || field.InternalName == "Created"
                             || field.InternalName == "Modified"
@@ -2783,12 +2799,35 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         }
                     }
 
+                    if(field.InternalName == Constants.ModernAudienceTargetingInternalName || field.InternalName == Constants.ModernAudienceTargetingMultiLookupInternalName)
+                    {
+                        //Modern Audience Targeting
+                        list.EnableAudienceTargeting = true;
+                    }
+
+                    if (field.InternalName == Constants.ClassicAudienceTargetingInternalName)
+                    {
+                        //Classic Audience Targeting
+                        list.EnableClassicAudienceTargeting = true;
+                    }
+
+
                     if (addField)
                     {
+                        var fieldTitle = field.Title;
+                        if (creationInfo.PersistMultiLanguageResources)
+                        {
+                            var escapedFieldTitle = siteList.Title.Replace(" ", "_")+"_"+field.Title.Replace(" ", "_");
+                            if (UserResourceExtensions.PersistResourceValue(field.TitleResource, $"Field_{escapedFieldTitle}_DisplayName", template, creationInfo))
+                            {
+                                fieldTitle = $"{{res:Field_{escapedFieldTitle}_DisplayName}}";
+                            }
+                        }
+
                         list.FieldRefs.Add(new FieldRef(field.InternalName)
                         {
                             Id = field.Id,
-                            DisplayName = field.Title,
+                            DisplayName = fieldTitle,
                             Required = field.Required,
                             Hidden = field.Hidden,
                         });
@@ -3048,5 +3087,6 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
             return _willExtract.Value;
         }
+
     }
 }
