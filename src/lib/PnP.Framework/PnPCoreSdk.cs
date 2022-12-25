@@ -42,7 +42,7 @@ namespace PnP.Framework
         /// Get's a PnPContext from a CSOM ClientContext
         /// </summary>
         /// <param name="context">CSOM ClientContext</param>
-        /// <param name="existingFactory">An existing factory to use for PnPContext creation, instead of a temporary one.</param>
+        /// <param name="existingFactory">An existing factory to use for PnPContext creation, instead of an internal one.</param>
         /// <returns>The equivalent PnPContext</returns>
         public async Task<PnPContext> GetPnPContextAsync(ClientContext context, IPnPContextFactory existingFactory = null)
         {
@@ -75,7 +75,7 @@ namespace PnP.Framework
         /// Get's a PnPContext from a CSOM ClientContext
         /// </summary>
         /// <param name="context">CSOM ClientContext</param>
-        /// <param name="existingFactory">An existing factory to use for PnPContext creation, instead of a temporary one.</param>
+        /// <param name="existingFactory">An existing factory to use for PnPContext creation, instead of an internal one.</param>
         /// <returns>The equivalent PnPContext</returns>
         public PnPContext GetPnPContext(ClientContext context, IPnPContextFactory existingFactory = null)
         {

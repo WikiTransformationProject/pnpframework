@@ -6,6 +6,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [1.11.0]
+
+### Added
+
+- Added .NET 7 binaries [jansenbe - Bert Jansen]
+- Moved to C# 10 [jansenbe - Bert Jansen]
+- Adding support to export ListInstance-FieldRef displayName with multilanguages #775 [magarma - Miguel Angel García Martínez]
+
+### Changed
+
+- Fix fileuniqueid and pageuniqueid export #692 [rjbooden - Ronald Booden]
+- Added null check for checking if members array is not null #694 [danielpastoor - Daniel Pastoor]
+- Add optional parameter to disable welcome message #700 [ohaak2 - Ole Rühaak]
+- Calculated field should be created after other fields #627 [friendbool]
+- Schema Implementation: ShowPeoplePickerSuggestionsForGuestUsers [pkbullock]
+- Schema Implementation: Audience Targeting Classic/Moder [pkbullock]
+- Add geo locations that has been recently added #732 [patrikhellgren - Patrik Hellgren]
+- Fix ClearDefaultColumnValues working on large lists #717 [cebud - Martin Dubec]
+- Export calculated field formula based on title instead of internal name #721 [madsmai - Mads Maibohm]
+- Allowing to create PnPContext from ClientContext with existing IPnPContextFactory #762 [heinrich-ulbricht - Heinrich Ulbricht]
+- Add support to exporting renamed Title columns to a PnP template #776 [jackpoz - Giacomo Pozzoni]
+- Drop unused Microsoft.Extensions.Logging.Abstractions reference [jansenbe - Bert Jansen]
+- Check owners if null before calling AddUnifiedGroupMembers #769 [magarma - Miguel Angel García Martínez]
+- Fixes for the EnableModernAudienceTargeting method #773 [patrikhellgren - Patrik Hellgren]
+- Fix for creating private channels #778 [patrikhellgren - Patrik Hellgren]
+- Fix for infinite loop in Replacing Tokens when property values contain the Regex special char "$" #777 [Autophanous]
+- Fix LocalizationToken.GetReplaceValue: fallback to old logic #785 [czullu - Christian Zuellig]
+- Fix: Failed to resolve termsetid token #786 [czullu - Christian Zuellig]
+- Token Regex for fileuniqueid* matches too broadly #751 #763 [heinrich-ulbricht - Heinrich Ulbricht]
+
 ## [1.10.0]
 
 ### Added
