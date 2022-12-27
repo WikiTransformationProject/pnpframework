@@ -1025,7 +1025,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
 
             if (clientSidePage.FieldValues != null && clientSidePage.FieldValues.Any())
             {
-                ListItemUtilities.UpdateListItem(fileAfterSave.ListItemAllFields, parser, clientSidePage.FieldValues, ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion);
+                // HEU: adjusted update logic depending on whether a page is new or not
+                // ==============================================================
+                var isNewlyCreatedPage = preCreatedPages.Contains(url);
+                // ==============================================================
+                ListItemUtilities.UpdateListItem(fileAfterSave.ListItemAllFields, parser, clientSidePage.FieldValues, isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion);
             }
 
             // Set page property bag values

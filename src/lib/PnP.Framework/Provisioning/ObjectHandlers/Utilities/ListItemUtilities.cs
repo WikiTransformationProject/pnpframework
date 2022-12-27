@@ -258,7 +258,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
         {
             Update,
             SystemUpdate,
-            UpdateOverwriteVersion
+            // use UpdateOverwriteVersion but fall back to SystemUpdate for Pages Lib with minor versions enabled
+            UpdateOverwriteVersion,
+            // force UpdateOverwriteVersion, even on Pages Lib with minor versions enabled - there is one case where this works: new pages
+            ForceUpdateOverwriteVersion
         }
 
         public static void UpdateListItem(ListItem item, TokenParser parser, IDictionary<string, string> valuesToSet, ListItemUpdateType updateType, bool SkipExecuteQuery = false)
@@ -271,6 +274,16 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
 
             bool isDocLib = list.EnsureProperty(l => l.BaseType) == BaseType.DocumentLibrary;
             bool isPagesLib = list.EnsureProperty(l => l.RootFolder).Name.Equals("SitePages", StringComparison.InvariantCultureIgnoreCase);
+
+            // HEU: check versioning setting to later select correct update strategy for item; SystemUpdate for existing items with minor versions enabled; for new items or with only major versions UpdateOverwriteVersion is possible
+            // ============================================================
+            bool areMinorVersionsEnabledInPagesLib = false;
+            if (isPagesLib)
+            {
+                list.EnsureProperties(l => l.EnableVersioning, l => l.EnableMinorVersions);
+                areMinorVersionsEnabledInPagesLib = list.EnableVersioning && list.EnableMinorVersions;
+            };
+            // ============================================================
 
             var clonedContext = context.Clone(context.Web.Url);
             var web = clonedContext.Web;
@@ -660,18 +673,30 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                         break;
                     }
                 case ListItemUpdateType.UpdateOverwriteVersion:
-                    {
+                {
                         var itemIsModernClientSidePage = isPagesLib && item["File_x0020_Type"]?.ToString() == "aspx";
                         if (itemIsModernClientSidePage)
                         {
                             // when updating fields of modern client side pages UpdateOverwriteVersion throws this error: "Additions to this Web site have been blocked."
                             // so use SystemUpdate instead
-                            item.UpdateOverwriteVersion();
+                            // NOTE: this only seems true if minor versions are enabled; with only major versions UpdateOverwriteVersion succeeds
+                            if (areMinorVersionsEnabledInPagesLib)
+                            {
+                                item.SystemUpdate();
+                            } else
+                            {
+                                item.UpdateOverwriteVersion();
+                            }
                         }
                         else
                         {
                             item.UpdateOverwriteVersion();
                         }
+                        break;
+                    }
+                case ListItemUpdateType.ForceUpdateOverwriteVersion:
+                    {
+                        item.UpdateOverwriteVersion();
                         break;
                     }
             }
