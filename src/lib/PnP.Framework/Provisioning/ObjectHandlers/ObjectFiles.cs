@@ -118,11 +118,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         if (file.Overwrite)
                         {
                             scope.LogDebug(CoreResources.Provisioning_ObjectHandlers_Files_Uploading_and_overwriting_existing_file__0_, targetFileName);
-                            checkedOut = CheckOutIfNeeded(web, targetFile);
+                            checkedOut = CheckOutIfNeeded(web, targetFile /* does not make sense here as it will be overwritten: additionalRetrievals.ToArray() */);
 
                             using (var stream = FileUtilities.GetFileStream(template, file))
                             {
                                 targetFile = UploadFile(folder, stream, targetFileName, file.Overwrite);
+                                // HEU PERFORMANCE NOTE: need to retrieve those here for later use; in other else-branches this is covered via CheckOutIfNeeded
+                                web.Context.Load(targetFile, additionalRetrievals.ToArray());
+                                web.Context.ExecuteQueryRetry();
                             }
                         }
                         else
@@ -152,13 +155,13 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     {
                         // Add the fileuniqueid tokens
                         
-                        // PERFORMANCE NOTE: already loaded when checking out via additionalRetrievals (save one API call)
+                        // HEU PERFORMANCE NOTE: already loaded when checking out via additionalRetrievals (save one API call)
                         // targetFile.EnsureProperties(p => p.UniqueId, p => p.ServerRelativePath);
 
                         // Add ListItemId token, given that a file can live outside of a library ensure this does not break provisioning
                         try
                         {
-                            // PERFORMANCE NOTE: already loaded when checking out via additionalRetrievals (save one API call)
+                            // HEU PERFORMANCE NOTE: already loaded when checking out via additionalRetrievals (save one API call)
                             //web.Context.Load(targetFile, p => p.ListItemAllFields.Id);
                             //web.Context.ExecuteQueryRetry();
 
