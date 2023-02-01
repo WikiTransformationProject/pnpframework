@@ -327,6 +327,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 }
             }
 
+            var updateMetadataNotContent = clientSidePage.FieldValues.ContainsKey("WT_UpdatePageMetaDataNotContent");
             PnPCore.IPage page = null;
             if (exists)
             {
@@ -386,7 +387,30 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 else
                 {
                     scope.LogWarning(CoreResources.Provisioning_ObjectHandlers_ClientSidePages_NoOverWrite, pageName);
-                    return;
+                    // HEU: adding metadata update mode; NOTE: below code is a duplicate from further down below
+                    // ==========================================================================================
+                    if (updateMetadataNotContent)
+                    {
+                        if (clientSidePage.FieldValues != null && clientSidePage.FieldValues.Any())
+                        {
+                            var pageListItem = file.ListItemAllFields;
+                            // broken page; try to fix it
+                            web.Context.Load(pageListItem);
+                            web.Context.ExecuteQueryRetry();
+
+                            // HEU: adjusted update logic depending on whether a page is new or not
+                            // ==============================================================
+                            var isNewlyCreatedPage = preCreatedPages.Contains(url);
+                            // ==============================================================
+                            ListItemUtilities.UpdateListItem(pageListItem, parser, clientSidePage.FieldValues, isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion);
+                            return;
+                        }
+                        // ==========================================================================================
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
             }
             
