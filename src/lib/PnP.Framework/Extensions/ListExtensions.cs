@@ -1783,7 +1783,11 @@ namespace Microsoft.SharePoint.Client
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception("Error applying default column values", ex);
+                    //throw new Exception("Error applying default column values", ex);
+
+                    // HEU: make provisioning work despite https://github.com/pnp/powershell/issues/2814 & https://github.com/pnp/pnpframework/issues/838; we won't set default values via template
+                    // HEU: setting/clearing default values will be invoked even if we have no default values specified
+                    Log.Warning(Constants.LOGGING_SOURCE, $"Exception thrown while setting default values; ignoring default values and continuing; Error message: {ex.Message}");
                 }
             }
         }
