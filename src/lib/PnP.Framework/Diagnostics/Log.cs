@@ -8,10 +8,10 @@ namespace PnP.Framework.Diagnostics
     /// </summary>
     public static class Log
     {
-        [ThreadStatic]
+//        [ThreadStatic]
         private static ILogger _logger;
 
-        [ThreadStatic]
+//        [ThreadStatic]
         private static LogLevel? _logLevel;
         /// <summary>
         /// Gets or sets Log Level
