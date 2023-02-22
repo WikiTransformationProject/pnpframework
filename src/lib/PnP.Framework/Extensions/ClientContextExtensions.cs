@@ -277,7 +277,7 @@ namespace Microsoft.SharePoint.Client
                     errorSb.AppendLine($"ServerErrorValue: {serverEx.ServerErrorValue}");
                     errorSb.AppendLine($"ServerErrorDetails: {serverEx.ServerErrorDetails}");
 
-                    Log.Error(Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetryException, errorSb.ToString());
+                    Log.Error(serverEx, Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetryException, errorSb.ToString());
 
                     throw;
                 }
