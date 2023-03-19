@@ -97,6 +97,20 @@ namespace Microsoft.SharePoint.Client
             Task.Run(() => ExecuteQueryImplementation(clientContext, retryCount, userAgent)).GetAwaiter().GetResult();
         }
 
+        public static T GetPrivateProperty<T>(object obj, string propertyName)
+        {
+            var result = (T)obj?.GetType()
+                          .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic)?
+                          .GetValue(obj);
+            if (null == result)
+            {
+                result = (T)obj?.GetType()
+                              .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?
+                              .GetValue(obj);
+            }
+            return result;
+        }
+
         private static async Task ExecuteQueryImplementation(ClientRuntimeContext clientContext, int retryCount = 10, string userAgent = null)
         {
 
@@ -124,6 +138,7 @@ namespace Microsoft.SharePoint.Client
             // Do while retry attempt is less than retry count
             while (retryAttempts < retryCount)
             {
+                var additionalDebugInfo = new List<string>();
                 try
                 {
                     clientContext.ClientTag = SetClientTag(clientTag);
@@ -135,6 +150,21 @@ namespace Microsoft.SharePoint.Client
                     EventHandler<WebRequestEventArgs> appDecorationHandler = AttachRequestUserAgent(userAgent);
 
                     clientContext.ExecutingWebRequest += appDecorationHandler;
+
+                    try
+                    {
+                        var actions = GetPrivateProperty<List<ClientAction>>(clientContext.PendingRequest, "Actions");
+                        foreach (var action in actions)
+                        {
+                            var objectName = GetPrivateProperty<string>(action.Path, "ObjectName");
+                            var pathIdentity = GetPrivateProperty<object>(action.Path, "Parent");
+                            var identityString = GetPrivateProperty<string>(pathIdentity, "Identity");
+                            additionalDebugInfo.Add($"{objectName} ({identityString})");
+                        }
+                    } catch
+                    {
+                        // ignore
+                    }
 
                     // DO NOT CHANGE THIS TO EXECUTEQUERYRETRY
                     if (!retry)
@@ -276,6 +306,7 @@ namespace Microsoft.SharePoint.Client
                     errorSb.AppendLine($"ServerErrorTraceCorrelationId: {serverEx.ServerErrorTraceCorrelationId}");
                     errorSb.AppendLine($"ServerErrorValue: {serverEx.ServerErrorValue}");
                     errorSb.AppendLine($"ServerErrorDetails: {serverEx.ServerErrorDetails}");
+                    errorSb.AppendLine($"Additional info: {string.Join(" | ", additionalDebugInfo)}");
 
                     Log.Error(serverEx, Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetryException, errorSb.ToString());
 
