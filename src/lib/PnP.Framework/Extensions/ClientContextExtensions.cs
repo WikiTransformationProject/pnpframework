@@ -16,6 +16,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -169,6 +170,15 @@ namespace Microsoft.SharePoint.Client
                     // DO NOT CHANGE THIS TO EXECUTEQUERYRETRY
                     if (!retry)
                     {
+#if DEBUG
+                        var doIt = false;
+                        if (doIt)
+                        {
+                            throw new IOException("Unable to read data from the transport connection: An existing connection was forcibly closed by the remote host..",
+                                new SocketException(10054));
+                        }
+#endif
+
                         await clientContext.ExecuteQueryAsync();
                     }
                     else
