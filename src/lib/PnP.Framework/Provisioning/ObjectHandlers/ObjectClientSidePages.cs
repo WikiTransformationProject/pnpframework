@@ -804,6 +804,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                                 myWebPart.InstanceId = instanceId;
                                             }
                                         }
+                                        if (json["title"] != null && json["title"].Type != JTokenType.Null)
+                                        {
+                                            myWebPart.Title = parser.ParseString(json["title"].Value<string>());
+                                        }
+                                        if (json["description"] != null && json["description"].Type != JTokenType.Null)
+                                        {
+                                            myWebPart.Description = parser.ParseString(json["description"].Value<string>());
+                                        }
 
                                         // inline image; need to set RichTextEditorInstanceId after generating text web part
                                         if (json["properties"]?["isInlineImage"]?.Value<bool>() ?? false)
@@ -874,6 +882,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                             {
                                                 myWebPart.InstanceId = instanceId;
                                             }
+                                        }
+                                        if (json["title"] != null && json["title"].Type != JTokenType.Null)
+                                        {
+                                            myWebPart.Title = parser.ParseString(json["title"].Value<string>());
+                                        }
+                                        if (json["description"] != null && json["description"].Type != JTokenType.Null)
+                                        {
+                                            myWebPart.Description = parser.ParseString(json["description"].Value<string>());
                                         }
                                         if (json["id"] != null && json["id"].Type != JTokenType.Null)
                                         {

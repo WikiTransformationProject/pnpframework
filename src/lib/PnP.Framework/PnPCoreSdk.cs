@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SharePoint.Client;
 using PnP.Core.Services;
+using PnP.Framework.Utilities.Context;
 using PnP.Framework.Utilities.PnPSdk;
 using System;
 using System.Threading;
@@ -15,7 +16,7 @@ namespace PnP.Framework
     {
 
         private static readonly Lazy<PnPCoreSdk> _lazyInstance = new Lazy<PnPCoreSdk>(() => new PnPCoreSdk(), true);
-        private IPnPContextFactory pnpContextFactoryCache;
+        internal IPnPContextFactory pnpContextFactoryCache;
         private static readonly SemaphoreSlim semaphoreSlimFactory = new SemaphoreSlim(1);
         internal static ILegacyAuthenticationProviderFactory AuthenticationProviderFactory { get; set; } = new PnPCoreSdkAuthenticationProviderFactory();
         internal static event EventHandler<IServiceCollection> OnDIContainerBuilding;
@@ -62,12 +63,31 @@ namespace PnP.Framework
                     var iAuthProvider = ctxSettings.AuthenticationManager.PnPCoreAuthenticationProvider;
                     if (iAuthProvider != null)
                     {
-                        var factory0 = existingFactory ?? BuildContextFactory();
+                        IPnPContextFactory factory0;
+                        if (existingFactory != null)
+                        {
+                            // use the provided factory for all upcoming PnPContext creations, also the ones driven internally from PnP Framework
+                            pnpContextFactoryCache = existingFactory;
+                            factory0 = existingFactory;
+                        }
+                        else
+                        {
+                            factory0 = BuildContextFactory(ctxSettings);                            
+                        }
+                        
                         return await factory0.CreateAsync(ctxUri, iAuthProvider).ConfigureAwait(false);
+
                     }
                 }
             }
-            var factory = existingFactory ?? BuildContextFactory();
+
+            if (existingFactory != null)
+            {
+                // use the provided factory for all upcoming PnPContext creations, also the ones driven internally from PnP Framework
+                pnpContextFactoryCache = existingFactory;                
+            }
+            
+            var factory = existingFactory ?? BuildContextFactory(ctxSettings);
             return await factory.CreateAsync(ctxUri, AuthenticationProviderFactory.GetAuthenticationProvider(context)).ConfigureAwait(false);
         }
 
@@ -82,7 +102,7 @@ namespace PnP.Framework
             return GetPnPContextAsync(context, existingFactory).GetAwaiter().GetResult();
         }
 
-        private IPnPContextFactory BuildContextFactory()
+        private IPnPContextFactory BuildContextFactory(ClientContextSettings clientContextSettings)
         {
             try
             {
@@ -98,11 +118,52 @@ namespace PnP.Framework
                 // Build the service collection and load PnP Core SDK
                 IServiceCollection services = new ServiceCollection();
 
-                // To increase coverage of solutions providing tokens without graph scopes we turn of graphfirst for PnPContext created from PnP Framework                
-                services = services.AddPnPCore(options =>
+                string environmentToUse = "Production";
+                string azureADLoginAuthority = "login.microsoftonline.com";
+                string microsoftGraphAuthority = "graph.microsoft.com";
+                if (clientContextSettings != null)
                 {
-                    options.PnPContext.GraphFirst = false;
-                }).Services;
+                    environmentToUse = MapAzureEnvironmentToMicrosoft365Environment(clientContextSettings.Environment.ToString());
+
+                    if (environmentToUse == "Custom" && clientContextSettings.AuthenticationManager != null)
+                    {
+                        string azureAdLoginEndPointForCustomConfiguration = clientContextSettings.AuthenticationManager.GetAzureAdLoginEndPointForCustomAzureEnvironmentConfiguration();
+                        if (!string.IsNullOrEmpty(azureAdLoginEndPointForCustomConfiguration))
+                        { 
+                            if (Uri.TryCreate(azureAdLoginEndPointForCustomConfiguration, UriKind.Absolute, out Uri azureAdLoginEndPointUri))
+                            {
+                                azureADLoginAuthority = azureAdLoginEndPointUri.Authority;
+                            }
+                        }
+
+                        string graphLoginEndPointForCustomConfiguration = clientContextSettings.AuthenticationManager.GetGraphEndPointForCustomAzureEnvironmentConfiguration();
+                        if (!string.IsNullOrEmpty(graphLoginEndPointForCustomConfiguration))
+                        {
+                            microsoftGraphAuthority = graphLoginEndPointForCustomConfiguration;
+                        }
+                    }
+                }
+
+                if (environmentToUse == "Custom")
+                {
+                    // To increase coverage of solutions providing tokens without graph scopes we turn of graphfirst for PnPContext created from PnP Framework                
+                    services = services.AddPnPCore(options =>
+                    {
+                        options.PnPContext.GraphFirst = false;
+                        options.Environment = environmentToUse;
+                        options.AzureADLoginAuthority = azureADLoginAuthority;
+                        options.MicrosoftGraphAuthority = microsoftGraphAuthority;
+                    }).Services;
+                }
+                else
+                {
+                    // To increase coverage of solutions providing tokens without graph scopes we turn of graphfirst for PnPContext created from PnP Framework                
+                    services = services.AddPnPCore(options =>
+                    {
+                        options.PnPContext.GraphFirst = false;
+                        options.Environment = environmentToUse;
+                    }).Services;
+                }
 
                 // Enables to plug in additional services into this service container
                 if (OnDIContainerBuilding != null)
@@ -157,6 +218,18 @@ namespace PnP.Framework
         public ClientContext GetClientContext(PnPContext pnpContext)
         {
             return GetClientContextAsync(pnpContext).GetAwaiter().GetResult();
+        }
+
+        private static string MapAzureEnvironmentToMicrosoft365Environment(string azureEnvironment) 
+        { 
+            if (azureEnvironment == "PPE")
+            {
+                return "PreProduction";
+            }
+            else
+            {
+                return azureEnvironment;
+            }
         }
 
     }
