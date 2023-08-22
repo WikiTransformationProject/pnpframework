@@ -219,7 +219,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                 var folderName = parser.ParseString(templateListFolder.Name);
                                 ProcessDefaultFolders(web, listInfo, templateListFolder, folderName, defaultFolderValues, parser);
                             }
-                            listInfo.SiteList.SetDefaultColumnValues(defaultFolderValues, true);
+
+                            if (defaultFolderValues.Any())
+                            {
+                                listInfo.SiteList.SetDefaultColumnValues(defaultFolderValues, true);
+                            }
                         }
 
                         #endregion Column default values
@@ -278,7 +282,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 if (!string.IsNullOrEmpty(fieldValue))
                 {
                     var field = listInfo.SiteList.Fields.GetByInternalNameOrTitle(fieldName);
-                    var defaultValue = field.GetDefaultColumnValueFromField((ClientContext)web.Context, folderName, new[] { fieldValue });
+                    var defaultValue = field.GetDefaultColumnValueFromField((ClientContext)web.Context, folderName, TermIdsToProcess(fieldValue).ToArray());
                     defaultFolderValues.Add(defaultValue);
                 }
             }
@@ -287,6 +291,20 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 var childFolderName = folderName + "/" + folder.Name;
                 ProcessDefaultFolders(web, listInfo, folder, childFolderName, defaultFolderValues, parser);
             }
+        }
+
+        private static List<string> TermIdsToProcess(string value)
+        {
+            var terms = value.Split(new[] { ";#" }, StringSplitOptions.None);
+            var termDefaultValuesParsed = new List<string>();
+            for (int q = 0; q < terms.Length; q += 2)
+            {
+                var splitData = terms[q + 1].Split(new char[] { '|' });
+                var termIdString = splitData[1];
+                termDefaultValuesParsed.Add(termIdString);
+            }
+
+            return termDefaultValuesParsed;
         }
 
         private static void ProcessIRMSettings(Web web, ListInfo list)
@@ -764,6 +782,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 var viewInnerXml = reader.ReadInnerXml();
 
                 var createdView = createdList.Views.Add(viewCI);
+                createdList.Update();
+                web.Context.ExecuteQueryRetry();
+
+                // Edit the view settings after creating it to avoid issues with some creation properties being ignored, for example ViewTypeKind
                 createdView.ListViewXml = viewInnerXml;
                 if (hidden) createdView.Hidden = hidden;
                 createdView.Update();
@@ -2660,7 +2682,12 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             foreach (var ct in siteList.ContentTypes)
             {
                 web.Context.Load(ct, c => c.Parent);
+                web.Context.Load(siteList.RootFolder, rf => rf.UniqueContentTypeOrder);
                 web.Context.ExecuteQueryRetry();
+
+                bool ctypeHidden = siteList.RootFolder.UniqueContentTypeOrder != null
+                    ? siteList.RootFolder.UniqueContentTypeOrder.FirstOrDefault(c => c.StringValue.Equals(ct.Id.StringValue, StringComparison.OrdinalIgnoreCase)) == null
+                    : false;
 
                 if (ct.Parent != null)
                 {
@@ -2671,14 +2698,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     // Exclude System Content Type to prevent getting exception during import
                     if (!ct.Parent.StringId.Equals(BuiltInContentTypeId.System))
                     {
-                        list.ContentTypeBindings.Add(new ContentTypeBinding { ContentTypeId = ct.Parent.StringId, Default = count == 0 });
+                        list.ContentTypeBindings.Add(new ContentTypeBinding { ContentTypeId = ct.Parent.StringId, Default = count == 0, Hidden = ctypeHidden });
                     }
 
                     //}
                 }
                 else
                 {
-                    list.ContentTypeBindings.Add(new ContentTypeBinding { ContentTypeId = ct.StringId, Default = count == 0 });
+                    list.ContentTypeBindings.Add(new ContentTypeBinding { ContentTypeId = ct.StringId, Default = count == 0, Hidden = ctypeHidden });
                 }
 
                 web.Context.Load(ct.FieldLinks);
@@ -2834,7 +2861,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         if (field.TypeAsString.StartsWith("TaxonomyField"))
                         {
                             // find the corresponding taxonomy field and include it anyway
-                            var taxField = (TaxonomyField)field;
+                            var taxField = web.Context.CastTo<TaxonomyField>(field);
+
                             taxField.EnsureProperties(f => f.TextField, f => f.Id);
 
                             var noteField = siteList.Fields.GetById(taxField.TextField);
