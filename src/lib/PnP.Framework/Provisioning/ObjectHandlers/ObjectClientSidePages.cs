@@ -49,8 +49,6 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 // determine pages library
                 string pagesLibrary = "SitePages";
 
-                var pagesLibraryList = web.GetListByUrl(pagesLibrary, p => p.RootFolder);
-
                 List<string> preCreatedPages = new List<string>();
 
                 // Ensure the needed languages are enabled on the site
@@ -59,12 +57,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 EnsureSpaces(web, template, scope);
 
                 var currentPageIndex = 0;
+                var retrievedFilesCacheHeu = new Dictionary<string, Microsoft.SharePoint.Client.File>();
                 // pre create the needed pages so we can fill the needed tokens which might be used later on when we put web parts on those pages
                 foreach (var clientSidePage in template.ClientSidePages)
                 {
-                    var preCreatedPage = PreCreatePage(web, template, parser, clientSidePage, pagesLibrary, pagesLibraryList, ref currentPageIndex);
+                    var (preCreatedPage, preCreatedPageFileHeu) = PreCreatePage(web, template, parser, clientSidePage, pagesLibrary, ref currentPageIndex);
                     if (preCreatedPage != null)
                     {
+                        retrievedFilesCacheHeu[preCreatedPage] = preCreatedPageFileHeu;
                         preCreatedPages.Add(preCreatedPage);
                     }
 
@@ -77,12 +77,12 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         {
                             // Get the existing template page
                             //page = web.LoadClientSidePage($"{Pages.ClientSidePage.GetTemplatesFolder(pagesLibraryList)}/{pageName}");
-                            page = web.LoadClientSidePage($"{dummyPage.GetTemplatesFolder()}/{pageName}");
+                            page = pnpContext.Web.LoadClientSidePage($"{dummyPage.GetTemplatesFolder()}/{pageName}");
                         }
                         else
                         {
                             // Get the existing page
-                            page = web.LoadClientSidePage(pageName);
+                            page = pnpContext.Web.LoadClientSidePage(pageName);
                         }
 
                         if (page != null)
@@ -138,6 +138,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                 var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
                                 web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
                                 web.Context.ExecuteQueryRetry();
+                                retrievedFilesCacheHeu[url] = file;
 
                                 // Fill token
                                 var pageUrlForToken = file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray());
@@ -148,17 +149,26 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     }
                 }
 
+                var getFromFileCacheByUrl = (string url) =>
+                {
+                    if (retrievedFilesCacheHeu.TryGetValue(url, out var file))
+                    {
+                        return file;
+                    }
+                    return null;
+                };
+
                 currentPageIndex = 0;
                 // Iterate over the pages and create/update them
                 foreach (var clientSidePage in template.ClientSidePages)
                 {
-                    CreatePage(web, template, parser, scope, clientSidePage, pagesLibrary, pagesLibraryList, ref currentPageIndex, preCreatedPages);
+                    CreatePage(web, template, parser, scope, clientSidePage, pagesLibrary, getFromFileCacheByUrl, ref currentPageIndex, preCreatedPages);
 
                     if (clientSidePage.Translations.Any())
                     {
                         foreach (var translatedClientSidePage in clientSidePage.Translations)
                         {
-                            CreatePage(web, template, parser, scope, translatedClientSidePage, pagesLibrary, pagesLibraryList, ref currentPageIndex, preCreatedPages);
+                            CreatePage(web, template, parser, scope, translatedClientSidePage, pagesLibrary, getFromFileCacheByUrl, ref currentPageIndex, preCreatedPages);
                         }
                     }
                 }
@@ -275,7 +285,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
         }
 
-        private void CreatePage(Web web, ProvisioningTemplate template, TokenParser parser, PnPMonitoredScope scope, BaseClientSidePage clientSidePage, string pagesLibrary, List pagesLibraryList, ref int currentPageIndex, List<string> preCreatedPages)
+        private void CreatePage(Web web, ProvisioningTemplate template, TokenParser parser, PnPMonitoredScope scope, BaseClientSidePage clientSidePage, string pagesLibrary, Func<string, Microsoft.SharePoint.Client.File> getFileThatHasAlreadyBeenRetrievedForPage, ref int currentPageIndex, List<string> preCreatedPages)
         {
             string pageName = DeterminePageName(parser, clientSidePage);
             string url = $"{pagesLibrary}/{pageName}";
@@ -310,20 +320,23 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
 
             var exists = true;
 
-            Microsoft.SharePoint.Client.File file = null;
             // see https://github.com/pnp/pnpframework/issues/724 about the broken page issue that sometimes creates pages missing basic field values like ClientSideApplicationId
             bool isBrokenPage = false;
-            try
+            Microsoft.SharePoint.Client.File file = getFileThatHasAlreadyBeenRetrievedForPage(url);
+            if (null == file)
             {
-                file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-                web.Context.Load(file);
-                web.Context.ExecuteQueryRetry();
-            }
-            catch (ServerException ex)
-            {
-                if (ex.ServerErrorTypeName == "System.IO.FileNotFoundException")
+                try
                 {
-                    exists = false;
+                    file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
+                    web.Context.Load(file);
+                    web.Context.ExecuteQueryRetry();
+                }
+                catch (ServerException ex)
+                {
+                    if (ex.ServerErrorTypeName == "System.IO.FileNotFoundException")
+                    {
+                        exists = false;
+                    }
                 }
             }
 
@@ -338,17 +351,17 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         // Get the existing template page
                         if (clientSidePage is TranslatedClientSidePage)
                         {
-                            page = web.LoadClientSidePage($"{pageName}");
+                            page = pnpContext.Web.LoadClientSidePage($"{pageName}");
                         }
                         else
                         {
-                            page = web.LoadClientSidePage($"{dummyPage.GetTemplatesFolder()}/{pageName}");
+                            page = pnpContext.Web.LoadClientSidePage($"{dummyPage.GetTemplatesFolder()}/{pageName}");
                         }
                     }
                     else
                     {
                         // Get the existing page
-                        page = web.LoadClientSidePage(pageName);
+                        page = pnpContext.Web.LoadClientSidePage(pageName);
                     }
 
                     // normally the page can be gotten when the file exists; but there seem to be rare cases of broken pages were basic field values are missing, see https://github.com/pnp/pnpframework/issues/724
@@ -1162,7 +1175,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             return pageName;
         }
 
-        private string PreCreatePage(Web web, ProvisioningTemplate template, TokenParser parser, BaseClientSidePage clientSidePage, string pagesLibrary, List pagesLibraryList, ref int currentPageIndex)
+        private (string url, Microsoft.SharePoint.Client.File file) PreCreatePage(Web web, ProvisioningTemplate template, TokenParser parser, BaseClientSidePage clientSidePage, string pagesLibrary, ref int currentPageIndex)
         {
             string pageName = DeterminePageName(parser, clientSidePage);
             string url = $"{pagesLibrary}/{pageName}";
@@ -1236,10 +1249,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
 
                 // Track that we pre-added this page
-                return url;
+                return (url, file);
             }
 
-            return null;
+            return (null, null);
         }
 
         public override ProvisioningTemplate ExtractObjects(Web web, ProvisioningTemplate template, ProvisioningTemplateCreationInformation creationInfo)

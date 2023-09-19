@@ -879,6 +879,16 @@ namespace Microsoft.SharePoint.Client
             }
         }
 
+        // HEU: to prevent creation of a new PnPContext if there is already one available
+        public async static Task<IPage> LoadClientSidePageAsync(this IWeb web, string pageName)
+        {
+            return (await web.GetPagesAsync(pageName).ConfigureAwait(false)).FirstOrDefault();
+        }
+        public static IPage LoadClientSidePage(this IWeb web, string pageName)
+        {
+            return web.LoadClientSidePageAsync(pageName).GetAwaiter().GetResult();
+        }
+
         /// <summary>
         /// Loads a client side "modern" page
         /// </summary>

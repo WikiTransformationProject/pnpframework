@@ -1,3 +1,4 @@
+using Microsoft.BusinessData.MetadataModel;
 using Microsoft.SharePoint.Client;
 using Microsoft.SharePoint.Client.Taxonomy;
 using PnP.Framework.Diagnostics;
@@ -271,6 +272,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
             var context = item.Context as ClientContext;
             var list = item.ParentList;
             context.Web.EnsureProperty(w => w.Url);
+
+            // HEU: bundling property loading for list to save some calls
+            // =====================================
+            list.EnsureProperties(l => l.BaseType, l => l.RootFolder, l => l.EnableVersioning, l => l.EnableMinorVersions);
+            // =====================================
 
             bool isDocLib = list.EnsureProperty(l => l.BaseType) == BaseType.DocumentLibrary;
             bool isPagesLib = list.EnsureProperty(l => l.RootFolder).Name.Equals("SitePages", StringComparison.InvariantCultureIgnoreCase);
