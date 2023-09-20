@@ -399,7 +399,6 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 }
                 else
                 {
-                    scope.LogWarning(CoreResources.Provisioning_ObjectHandlers_ClientSidePages_NoOverWrite, pageName);
                     // HEU: adding metadata update mode; NOTE: below code is a duplicate from further down below
                     // ==========================================================================================
                     if (updateMetadataNotContent)
@@ -422,6 +421,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     }
                     else
                     {
+                        scope.LogWarning(CoreResources.Provisioning_ObjectHandlers_ClientSidePages_NoOverWrite, pageName);
                         return;
                     }
                 }
