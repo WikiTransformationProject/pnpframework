@@ -22,6 +22,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
+using WikiTraccs.Shared.Http;
 
 namespace Microsoft.SharePoint.Client
 {
@@ -179,12 +180,14 @@ namespace Microsoft.SharePoint.Client
                         }
 #endif
 
+                        await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
                         await clientContext.ExecuteQueryAsync();
                     }
                     else
                     {
                         if (wrapper != null && wrapper.Value != null)
                         {
+                            await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
                             await clientContext.RetryQueryAsync(wrapper.Value);
                         }
                     }
@@ -230,10 +233,12 @@ namespace Microsoft.SharePoint.Client
                         }
                         else
                         {
-                            Log.Warning(Constants.LOGGING_SOURCE, $"CSOM request frequency exceeded usage limits. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
+                            Log.Info(Constants.LOGGING_SOURCE, $"CSOM request frequency exceeded usage limits. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
                         }
 
-                        await Task.Delay(retryAfterInterval);
+                        AwaitableGate.Instance.SetWaitTime(retryAfterInterval);
+                        await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
+//                        await Task.Delay(retryAfterInterval);
 
                         //Add to retry count and increase delay.
                         retryAttempts++;
@@ -284,7 +289,9 @@ namespace Microsoft.SharePoint.Client
 
                             Log.Warning(Constants.LOGGING_SOURCE, $"CSOM request socket exception. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
 
-                            await Task.Delay(retryAfterInterval);
+                            AwaitableGate.Instance.SetWaitTime(retryAfterInterval);
+                            await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
+                            //await Task.Delay(retryAfterInterval);
 
                             //Add to retry count and increase delay.
                             retryAttempts++;
