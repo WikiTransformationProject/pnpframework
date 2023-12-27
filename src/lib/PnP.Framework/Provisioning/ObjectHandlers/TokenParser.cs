@@ -491,21 +491,22 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 {
                     try
                     {
+                        throw new NotImplementedException();
                         // Get Office 365 Groups
-                        var officeGroups = UnifiedGroupsUtility.GetUnifiedGroups(accessToken, includeSite: false);
-                        foreach (var group in officeGroups)
-                        {
-                            _tokens.Add(new O365GroupIdToken(web, group.DisplayName, group.GroupId));
-                            if (!group.DisplayName.Equals(group.MailNickname))
-                            {
-                                _tokens.Add(new O365GroupIdToken(web, group.MailNickname, group.GroupId));
-                            }
-                        }
+                        //var officeGroups = UnifiedGroupsUtility.GetUnifiedGroups(accessToken, includeSite: false);
+                        //foreach (var group in officeGroups)
+                        //{
+                        //    _tokens.Add(new O365GroupIdToken(web, group.DisplayName, group.GroupId));
+                        //    if (!group.DisplayName.Equals(group.MailNickname))
+                        //    {
+                        //        _tokens.Add(new O365GroupIdToken(web, group.MailNickname, group.GroupId));
+                        //    }
+                        //}
                     }
                     catch (Microsoft.Graph.ServiceException ex)
                     {
                         // If we don't have permission to access the O365 groups, just skip it
-                        Log.Warning(Constants.LOGGING_SOURCE, CoreResources.GraphExtensions_ErrorOccured, ex.Error.Message);
+                        Log.Warning(Constants.LOGGING_SOURCE, CoreResources.GraphExtensions_ErrorOccured, ex.Message);
                     }
                 }
             }

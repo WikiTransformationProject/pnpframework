@@ -77,17 +77,17 @@ namespace PnP.Framework.Sites
         /// <param name="graphAccessToken">An optional Access Token for Microsoft Graph to use for creeating the site within an App-Only context</param>
         /// <param name="azureEnvironment">Defines the Azure Cloud Deployment. This is used to determine the MS Graph EndPoint to call which differs per Azure Cloud deployments. Defaults to Production (graph.microsoft.com).</param>
         /// <returns>ClientContext object for the created site collection</returns>
-        public static ClientContext Create(
-            ClientContext clientContext,
-            TeamSiteCollectionCreationInformation siteCollectionCreationInformation,
-            int delayAfterCreation = 0,
-            bool noWait = false,
-            string graphAccessToken = null,
-            AzureEnvironment azureEnvironment = AzureEnvironment.Production)
-        {
-            var context = CreateAsync(clientContext, siteCollectionCreationInformation, delayAfterCreation, noWait: noWait, graphAccessToken: graphAccessToken, azureEnvironment: azureEnvironment).GetAwaiter().GetResult();
-            return context;
-        }
+        //public static ClientContext Create(
+        //    ClientContext clientContext,
+        //    TeamSiteCollectionCreationInformation siteCollectionCreationInformation,
+        //    int delayAfterCreation = 0,
+        //    bool noWait = false,
+        //    string graphAccessToken = null,
+        //    AzureEnvironment azureEnvironment = AzureEnvironment.Production)
+        //{
+        //    var context = CreateAsync(clientContext, siteCollectionCreationInformation, delayAfterCreation, noWait: noWait, graphAccessToken: graphAccessToken, azureEnvironment: azureEnvironment).GetAwaiter().GetResult();
+        //    return context;
+        //}
 
         /// <summary>
         /// Creates a new Communication Site Collection
@@ -212,47 +212,47 @@ namespace PnP.Framework.Sites
         /// <param name="graphAccessToken">An optional Access Token for Microsoft Graph to use for creeating the site within an App-Only context</param>
         /// <param name="azureEnvironment">Defines the Azure Cloud Deployment. This is used to determine the MS Graph EndPoint to call which differs per Azure Cloud deployments. Defaults to Production (graph.microsoft.com).</param>
         /// <returns>ClientContext object for the created site collection</returns>
-        public static async Task<ClientContext> CreateAsync(ClientContext clientContext, TeamSiteCollectionCreationInformation siteCollectionCreationInformation,
-            int delayAfterCreation = 0,
-            int maxRetryCount = 12, // Maximum number of retries (12 x 10 sec = 120 sec = 2 mins)
-            int retryDelay = 1000 * 10, // Wait time default to 10sec,
-            bool noWait = false,
-            string graphAccessToken = null,
-            AzureEnvironment azureEnvironment = AzureEnvironment.Production
-            )
-        {
-            if (siteCollectionCreationInformation.Alias.Contains(" "))
-            {
-                throw new ArgumentException("Alias cannot contain spaces", "Alias");
-            }
+        //public static async Task<ClientContext> CreateAsync(ClientContext clientContext, TeamSiteCollectionCreationInformation siteCollectionCreationInformation,
+        //    int delayAfterCreation = 0,
+        //    int maxRetryCount = 12, // Maximum number of retries (12 x 10 sec = 120 sec = 2 mins)
+        //    int retryDelay = 1000 * 10, // Wait time default to 10sec,
+        //    bool noWait = false,
+        //    string graphAccessToken = null,
+        //    AzureEnvironment azureEnvironment = AzureEnvironment.Production
+        //    )
+        //{
+        //    if (siteCollectionCreationInformation.Alias.Contains(" "))
+        //    {
+        //        throw new ArgumentException("Alias cannot contain spaces", "Alias");
+        //    }
 
-            string siteCollectionValidAlias = siteCollectionCreationInformation.Alias;
-            siteCollectionValidAlias = UrlUtility.RemoveUnallowedCharacters(siteCollectionValidAlias);
-            siteCollectionValidAlias = UrlUtility.ReplaceAccentedCharactersWithLatin(siteCollectionValidAlias);
+        //    string siteCollectionValidAlias = siteCollectionCreationInformation.Alias;
+        //    siteCollectionValidAlias = UrlUtility.RemoveUnallowedCharacters(siteCollectionValidAlias);
+        //    siteCollectionValidAlias = UrlUtility.ReplaceAccentedCharactersWithLatin(siteCollectionValidAlias);
 
-            siteCollectionCreationInformation.Alias = siteCollectionValidAlias;
+        //    siteCollectionCreationInformation.Alias = siteCollectionValidAlias;
 
-            await new SynchronizationContextRemover();
-            if (clientContext.IsAppOnly() && string.IsNullOrEmpty(graphAccessToken))
-            {
-                throw new Exception("App-Only is currently not supported, unless you provide a Microsoft Graph Access Token.");
-            }
+        //    await new SynchronizationContextRemover();
+        //    if (clientContext.IsAppOnly() && string.IsNullOrEmpty(graphAccessToken))
+        //    {
+        //        throw new Exception("App-Only is currently not supported, unless you provide a Microsoft Graph Access Token.");
+        //    }
 
-            ClientContext responseContext;
-            // If we're in an app-only context and we have the access token, then we use Microsoft Graph
-            if (clientContext.IsAppOnly() && !string.IsNullOrEmpty(graphAccessToken))
-            {
-                // Use Microsoft Graph to create the Office 365 Group, and as such the related modern Team Site
-                responseContext = await CreateTeamSiteViaGraphAsync(clientContext, siteCollectionCreationInformation, delayAfterCreation, maxRetryCount, noWait: noWait, graphAccessToken: graphAccessToken, azureEnvironment: azureEnvironment);
-            }
-            else
-            {
-                // Use the regular REST API of SPO to create the modern Team Site
-                responseContext = await CreateTeamSiteViaSPOAsync(clientContext, siteCollectionCreationInformation, delayAfterCreation, maxRetryCount, noWait: noWait);
-            }
+        //    ClientContext responseContext;
+        //    // If we're in an app-only context and we have the access token, then we use Microsoft Graph
+        //    if (clientContext.IsAppOnly() && !string.IsNullOrEmpty(graphAccessToken))
+        //    {
+        //        // Use Microsoft Graph to create the Office 365 Group, and as such the related modern Team Site
+        //        responseContext = await CreateTeamSiteViaGraphAsync(clientContext, siteCollectionCreationInformation, delayAfterCreation, maxRetryCount, noWait: noWait, graphAccessToken: graphAccessToken, azureEnvironment: azureEnvironment);
+        //    }
+        //    else
+        //    {
+        //        // Use the regular REST API of SPO to create the modern Team Site
+        //        responseContext = await CreateTeamSiteViaSPOAsync(clientContext, siteCollectionCreationInformation, delayAfterCreation, maxRetryCount, noWait: noWait);
+        //    }
 
-            return responseContext;
-        }
+        //    return responseContext;
+        //}
 
         /// <summary>
         /// Private method to create a new Modern Team Site Collection (so with an Office 365 group connected) using SPO REST
@@ -502,65 +502,65 @@ namespace PnP.Framework.Sites
         /// <param name="graphAccessToken">An optional Access Token for Microsoft Graph to use for creeating the site within an App-Only context</param>
         /// <param name="azureEnvironment">Defines the Azure Cloud Deployment. This is used to determine the MS Graph EndPoint to call which differs per Azure Cloud deployments. Defaults to Production (graph.microsoft.com).</param>
         /// <returns>ClientContext object for the created site collection</returns>
-        public static async Task<ClientContext> CreateTeamSiteViaGraphAsync(ClientContext clientContext, TeamSiteCollectionCreationInformation siteCollectionCreationInformation,
-            int delayAfterCreation = 0,
-            int maxRetryCount = 12, // Maximum number of retries (12 x 10 sec = 120 sec = 2 mins)
-            int retryDelay = 1000 * 10, // Wait time default to 10sec,
-            bool noWait = false,
-            string graphAccessToken = null,
-            AzureEnvironment azureEnvironment = AzureEnvironment.Production
-            )
-        {
-            ClientContext responseContext = null;
+        //public static async Task<ClientContext> CreateTeamSiteViaGraphAsync(ClientContext clientContext, TeamSiteCollectionCreationInformation siteCollectionCreationInformation,
+        //    int delayAfterCreation = 0,
+        //    int maxRetryCount = 12, // Maximum number of retries (12 x 10 sec = 120 sec = 2 mins)
+        //    int retryDelay = 1000 * 10, // Wait time default to 10sec,
+        //    bool noWait = false,
+        //    string graphAccessToken = null,
+        //    AzureEnvironment azureEnvironment = AzureEnvironment.Production
+        //    )
+        //{
+        //    ClientContext responseContext = null;
 
 
-            Guid sensitivityLabelId = Guid.Empty;
-            if (siteCollectionCreationInformation.SensitivityLabelId != Guid.Empty)
-            {
-                sensitivityLabelId = siteCollectionCreationInformation.SensitivityLabelId;
-            }
-            else if (!string.IsNullOrEmpty(siteCollectionCreationInformation.SensitivityLabel))
-            {
-                sensitivityLabelId = await GetSensitivityLabelId(clientContext, siteCollectionCreationInformation.SensitivityLabel);
-            }
+        //    Guid sensitivityLabelId = Guid.Empty;
+        //    if (siteCollectionCreationInformation.SensitivityLabelId != Guid.Empty)
+        //    {
+        //        sensitivityLabelId = siteCollectionCreationInformation.SensitivityLabelId;
+        //    }
+        //    else if (!string.IsNullOrEmpty(siteCollectionCreationInformation.SensitivityLabel))
+        //    {
+        //        sensitivityLabelId = await GetSensitivityLabelId(clientContext, siteCollectionCreationInformation.SensitivityLabel);
+        //    }
 
-            var group = Graph.UnifiedGroupsUtility.CreateUnifiedGroup(
-                siteCollectionCreationInformation.DisplayName,
-                siteCollectionCreationInformation.Description,
-                siteCollectionCreationInformation.Alias,
-                graphAccessToken,
-                siteCollectionCreationInformation.Owners,
-                null, // No members
-                isPrivate: !siteCollectionCreationInformation.IsPublic,
-                createTeam: false,
-                retryCount: maxRetryCount,
-                delay: retryDelay,
-                azureEnvironment: azureEnvironment,
-                preferredDataLocation: siteCollectionCreationInformation.PreferredDataLocation,
-                assignedLabels: new Guid[] { sensitivityLabelId });
+        //    var group = Graph.UnifiedGroupsUtility.CreateUnifiedGroup(
+        //        siteCollectionCreationInformation.DisplayName,
+        //        siteCollectionCreationInformation.Description,
+        //        siteCollectionCreationInformation.Alias,
+        //        graphAccessToken,
+        //        siteCollectionCreationInformation.Owners,
+        //        null, // No members
+        //        isPrivate: !siteCollectionCreationInformation.IsPublic,
+        //        createTeam: false,
+        //        retryCount: maxRetryCount,
+        //        delay: retryDelay,
+        //        azureEnvironment: azureEnvironment,
+        //        preferredDataLocation: siteCollectionCreationInformation.PreferredDataLocation,
+        //        assignedLabels: new Guid[] { sensitivityLabelId });
 
-            if (group != null && !string.IsNullOrEmpty(group.SiteUrl))
-            {
-                if (siteCollectionCreationInformation.Owners!=null)
-                {
-                    Graph.UnifiedGroupsUtility.AddUnifiedGroupMembers(group.GroupId, siteCollectionCreationInformation.Owners, graphAccessToken, azureEnvironment: azureEnvironment);
-                }
-                // Try to configure the site/group classification, if any
-                if (!string.IsNullOrEmpty(siteCollectionCreationInformation.Classification))
-                {
-                    await SetTeamSiteClassification(
-                        clientContext,
-                        siteCollectionCreationInformation.Classification,
-                        group.GroupId,
-                        graphAccessToken
-                        );
-                }
+        //    if (group != null && !string.IsNullOrEmpty(group.SiteUrl))
+        //    {
+        //        if (siteCollectionCreationInformation.Owners!=null)
+        //        {
+        //            Graph.UnifiedGroupsUtility.AddUnifiedGroupMembers(group.GroupId, siteCollectionCreationInformation.Owners, graphAccessToken, azureEnvironment: azureEnvironment);
+        //        }
+        //        // Try to configure the site/group classification, if any
+        //        if (!string.IsNullOrEmpty(siteCollectionCreationInformation.Classification))
+        //        {
+        //            await SetTeamSiteClassification(
+        //                clientContext,
+        //                siteCollectionCreationInformation.Classification,
+        //                group.GroupId,
+        //                graphAccessToken
+        //                );
+        //        }
 
-                responseContext = clientContext.Clone(group.SiteUrl);
-            }
+        //        responseContext = clientContext.Clone(group.SiteUrl);
+        //    }
 
-            return responseContext;
-        }
+        //    return responseContext;
+        //}
 
         private static async Task SetTeamSiteClassification(ClientContext clientContext, string classification, string groupId, string graphAccessToken)
         {

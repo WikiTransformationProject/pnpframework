@@ -1102,12 +1102,12 @@ namespace Microsoft.SharePoint.Client
         /// <param name="clientContext"></param>
         /// <param name="siteCollectionCreationInformation"></param>
         /// <returns></returns>
-        public static async Task<ClientContext> CreateSiteAsync(this ClientContext clientContext, TeamSiteCollectionCreationInformation siteCollectionCreationInformation)
-        {
-            await new SynchronizationContextRemover();
+        //public static async Task<ClientContext> CreateSiteAsync(this ClientContext clientContext, TeamSiteCollectionCreationInformation siteCollectionCreationInformation)
+        //{
+        //    await new SynchronizationContextRemover();
 
-            return await SiteCollection.CreateAsync(clientContext, siteCollectionCreationInformation);
-        }
+        //    return await SiteCollection.CreateAsync(clientContext, siteCollectionCreationInformation);
+        //}
 
         /// <summary>
         /// BETA: Groupifies a classic Team Site Collection
