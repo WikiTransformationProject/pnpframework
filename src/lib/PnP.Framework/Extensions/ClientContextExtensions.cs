@@ -233,7 +233,7 @@ namespace Microsoft.SharePoint.Client
                         }
                         else
                         {
-                            Log.Info(Constants.LOGGING_SOURCE, $"[THROTTLING] CSOM request frequency exceeded usage limits. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
+                            Log.Info(Constants.LOGGING_SOURCE, $"[THROTTLED] CSOM request frequency exceeded usage limits. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
                         }
 
                         AwaitableGate.Instance.SetWaitTime(retryAfterInterval);
