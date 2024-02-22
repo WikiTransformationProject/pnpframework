@@ -271,11 +271,20 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
 
             var context = item.Context as ClientContext;
             var list = item.ParentList;
-            context.Web.EnsureProperty(w => w.Url);
-
+            //context.Web.EnsureProperty(w => w.Url);
             // HEU: bundling property loading for list to save some calls
             // =====================================
-            list.EnsureProperties(l => l.BaseType, l => l.RootFolder, l => l.EnableVersioning, l => l.EnableMinorVersions);
+            var r1 = context.Web.ScheduleProperties(w => w.Url);
+
+            // note: EnableModeration is used further down the road when publishing... implementation detail, but saves one call
+            var r2 = list.ScheduleProperties(l => l.BaseType, l => l.RootFolder, l => l.EnableVersioning, l => l.EnableMinorVersions, l => l.EnableModeration, l => l.RootFolder.Name);
+            var r3 = list.ScheduleProperties(l => l.Fields.Include(f => f.InternalName, f => f.Title, f => f.TypeAsString));
+            if (r1 == ClientObjectExtensions.ScheduleResult.NeedExecuteQueryToGetProperties
+                || r2 == ClientObjectExtensions.ScheduleResult.NeedExecuteQueryToGetProperties
+                || r3 == ClientObjectExtensions.ScheduleResult.NeedExecuteQueryToGetProperties)
+            {
+                context.ExecuteQueryRetry();
+            }
             // =====================================
 
             bool isDocLib = list.EnsureProperty(l => l.BaseType) == BaseType.DocumentLibrary;
@@ -294,10 +303,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
             var clonedContext = context.Clone(context.Web.Url);
             var web = clonedContext.Web;
 
-            var fields =
-                     context.LoadQuery(list.Fields.Include(f => f.InternalName, f => f.Title,
-                         f => f.TypeAsString));
-            context.ExecuteQueryRetry();
+            var fields = list.Fields.ToList();
+            //var fields =
+            //         context.LoadQuery(list.Fields.Include(f => f.InternalName, f => f.Title,
+            //             f => f.TypeAsString));
+            //context.ExecuteQueryRetry();
 
             Regex fileUniqueIdToken = new Regex("(?<token>[{]{1,2}(?:fileuniqueid:fileuniqueidencoded:)|[^}]*[}]{1,2})(?:[^{]*)", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
 

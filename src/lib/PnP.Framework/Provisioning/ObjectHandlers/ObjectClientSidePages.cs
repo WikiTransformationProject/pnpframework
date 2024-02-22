@@ -42,6 +42,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             using (var scope = new PnPMonitoredScope(this.Name))
             {
                 pnpContext = PnPCoreSdk.Instance.GetPnPContext(web.Context as ClientContext);
+                // GET /sites/2022-08-deleteme/_api/web/lists?$select=Id%2cTitle%2cBaseTemplate%2cEnableVersioning%2cEnableMinorVersions%2cEnableModeration%2cForceCheckout%2cEnableFolderCreation%2cListItemEntityTypeFullName%2cRootFolder%2fServerRelativeUrl%2cRootFolder%2fUniqueId%2cFields&$expand=RootFolder%2cRootFolder%2fProperties%2cFields&$filter=BaseTemplate+eq+119&$top=100 HTTP/1.1
                 dummyPage = pnpContext.Web.NewPage();
 
                 web.EnsureProperties(w => w.ServerRelativeUrl);
@@ -61,6 +62,15 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 // pre create the needed pages so we can fill the needed tokens which might be used later on when we put web parts on those pages
                 foreach (var clientSidePage in template.ClientSidePages)
                 {
+                    // 1. POST ProcessQuery -> GetFileByServerRelativePath = Existenzprüfung
+                    // 2. GET /sites/2022-08-deleteme/_api/web/lists?$select=Id%2cTitle%2cBaseTemplate%2cEnableVersioning%2cEnableMinorVersions%2cEnableModeration%2cForceCheckout%2cEnableFolderCreation%2cListItemEntityTypeFullName%2cRootFolder%2fServerRelativeUrl%2cRootFolder%2fUniqueId%2cFields&$expand=RootFolder%2cRootFolder%2fProperties%2cFields&$filter=BaseTemplate+eq+119&$top=100 HTTP/1.1
+                    // GONE: 3. GET(404) GET /sites/2022-08-deleteme/_api/Web/getFileByServerRelativePath(decodedUrl='%2Fsites%2F2022-08-deleteme%2FSitePages%2Fparzival-blank%2B-15007745.aspx')?$select=ListId%2cServerRelativeUrl%2cUniqueId%2cListItemAllFields%2f*%2cListItemAllFields%2fId%2cListItemAllFields%2fParentList%2fId%2cListItemAllFields%2fParentList%2fFields%2fInternalName%2cListItemAllFields%2fParentList%2fFields%2fFieldTypeKind%2cListItemAllFields%2fParentList%2fFields%2fTypeAsString%2cListItemAllFields%2fParentList%2fFields%2fTitle%2cListItemAllFields%2fParentList%2fFields%2fId&$expand=ListItemAllFields%2cListItemAllFields%2fParentList%2cListItemAllFields%2fParentList%2fFields HTTP/1.1
+                    // 4. POST POST /sites/2022-08-deleteme/_api/web/getFolderById('e5371ba7-51c1-4fde-9a60-478b1205eb6e')/files/AddTemplateFile(urlOfFile='%2Fsites%2F2022-08-deleteme%2FSitePages%2Fparzival-blank%2B-15007745.aspx',templateFileType=3) HTTP/1.1
+                    // 5. GET GET /sites/2022-08-deleteme/_api/Web/getFileByServerRelativePath(decodedUrl='%2Fsites%2F2022-08-deleteme%2FSitePages%2Fparzival-blank%2B-15007745.aspx')?$select=ListId%2cServerRelativeUrl%2cUniqueId%2cListItemAllFields%2f*%2cListItemAllFields%2fId%2cListItemAllFields%2fParentList%2fId%2cListItemAllFields%2fParentList%2fFields%2fInternalName%2cListItemAllFields%2fParentList%2fFields%2fFieldTypeKind%2cListItemAllFields%2fParentList%2fFields%2fTypeAsString%2cListItemAllFields%2fParentList%2fFields%2fTitle%2cListItemAllFields%2fParentList%2fFields%2fId&$expand=ListItemAllFields%2cListItemAllFields%2fParentList%2cListItemAllFields%2fParentList%2fFields HTTP/1.1
+                    // 6. POST ProcessQuery -> ListItemProperties setzen
+                    // 7. POST ProcessQuery -> GetFileByServerRelativePath
+
+                    // 2024-02-22: down from 7 to 6 calls
                     var (preCreatedPage, preCreatedPageFileHeu) = PreCreatePage(web, template, parser, clientSidePage, pagesLibrary, ref currentPageIndex);
                     if (preCreatedPage != null)
                     {
@@ -162,6 +172,24 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 // Iterate over the pages and create/update them
                 foreach (var clientSidePage in template.ClientSidePages)
                 {
+                    // 1. GET /sites/2022-08-deleteme/_api/web/lists?$select=Id%2cTitle%2cBaseTemplate%2cEnableVersioning%2cEnableMinorVersions%2cEnableModeration%2cForceCheckout%2cEnableFolderCreation%2cListItemEntityTypeFullName%2cRootFolder%2fServerRelativeUrl%2cRootFolder%2fUniqueId%2cFields&$expand=RootFolder%2cRootFolder%2fProperties%2cFields&$filter=BaseTemplate+eq+119&$top=100 HTTP/1.1
+                    // 2. GET /sites/2022-08-deleteme/_api/Web/getFileByServerRelativePath(decodedUrl='%2Fsites%2F2022-08-deleteme%2FSitePages%2Fparzival-blank%2B-15007745.aspx')?$select=ListId%2cServerRelativeUrl%2cUniqueId%2cListItemAllFields%2f*%2cListItemAllFields%2fId%2cListItemAllFields%2fParentList%2fId%2cListItemAllFields%2fParentList%2fFields%2fInternalName%2cListItemAllFields%2fParentList%2fFields%2fFieldTypeKind%2cListItemAllFields%2fParentList%2fFields%2fTypeAsString%2cListItemAllFields%2fParentList%2fFields%2fTitle%2cListItemAllFields%2fParentList%2fFields%2fId&$expand=ListItemAllFields%2cListItemAllFields%2fParentList%2cListItemAllFields%2fParentList%2fFields HTTP/1.1
+                    // 3. POST batch
+                    // - POST https://heinrichulbricht.sharepoint.com/sites/2022-08-deleteme/_api/Web/Lists(guid'd0dce654-b0b6-4cf6-b305-a83544aa5e10')/RenderListDataAsStream HTTP/1.1
+                    // CACHED: 4. POST /sites/2022-08-deleteme/_api/web/GetClientSideWebParts
+                    // 5. GET /sites/2022-08-deleteme/_api/Web/getFileByServerRelativePath(decodedUrl='%2Fsites%2F2022-08-deleteme%2FSitePages%2Fparzival-blank%2B-15007745.aspx')?$select=ListId%2cServerRelativeUrl%2cUniqueId%2cListItemAllFields%2f*%2cListItemAllFields%2fId%2cListItemAllFields%2fParentList%2fId%2cListItemAllFields%2fParentList%2fFields%2fInternalName%2cListItemAllFields%2fParentList%2fFields%2fFieldTypeKind%2cListItemAllFields%2fParentList%2fFields%2fTypeAsString%2cListItemAllFields%2fParentList%2fFields%2fTitle%2cListItemAllFields%2fParentList%2fFields%2fId&$expand=ListItemAllFields%2cListItemAllFields%2fParentList%2cListItemAllFields%2fParentList%2fFields HTTP/1.1
+                    // 6. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - Properties setzen
+                    // 7. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - Properties holen
+                    // 8. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - Properties holen
+                    // 9. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - viele Properties holen...
+                    // 10. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - Properties holen
+                    // 11. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - Properties holen duplikate??
+                    // 12. POST /sites/2022-08-deleteme/_vti_bin/client.svc/ProcessQuery - Properties setzen
+                    // GONE: 13. POST /sites/2022-08-deleteme/_api/web/getFileById('a306f672-4d4f-4f0e-856d-76e2e9999154')/listitemallfields/SetCommentsDisabled HTTP/1.1
+                    // 14. GET /sites/2022-08-deleteme/_api/Web/getFileByServerRelativePath(decodedUrl='%2Fsites%2F2022-08-deleteme%2FSitePages%2Fparzival-blank%2B-15007745.aspx')?$select=CheckOutType%2cListId%2cUniqueId HTTP/1.1
+                    // 15. GET /sites/2022-08-deleteme/_api/web/lists?$select=Id%2cTitle%2cBaseTemplate%2cEnableVersioning%2cEnableMinorVersions%2cEnableModeration%2cForceCheckout%2cEnableFolderCreation%2cListItemEntityTypeFullName%2cRootFolder%2fServerRelativeUrl%2cRootFolder%2fUniqueId%2cFields&$expand=RootFolder%2cRootFolder%2fProperties%2cFields&$filter=BaseTemplate+eq+119&$top=100 HTTP/1.1
+
+                    // 2024-02-22 down from 15 to 10 calls (starting with the second page as caching kicks in)
                     CreatePage(web, template, parser, scope, clientSidePage, pagesLibrary, getFromFileCacheByUrl, ref currentPageIndex, preCreatedPages);
 
                     if (clientSidePage.Translations.Any())
@@ -285,6 +313,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
         }
 
+        // page components shouldn't change for a site during the course of what WikiTraccs does
+        private static Dictionary<string, IEnumerable<PnPCore.IPageComponent>> pageComponentsCache = new();
+        // cache our content type ID; don't need to look that up for every page again
+        private static readonly Dictionary<(string siteUrl, string contentTypeIdFromTemplate), string> contentTypeIdOnSitePagesListCache = new();
+
         private void CreatePage(Web web, ProvisioningTemplate template, TokenParser parser, PnPMonitoredScope scope, BaseClientSidePage clientSidePage, string pagesLibrary, Func<string, Microsoft.SharePoint.Client.File> getFileThatHasAlreadyBeenRetrievedForPage, ref int currentPageIndex, List<string> preCreatedPages)
         {
             string pageName = DeterminePageName(parser, clientSidePage);
@@ -341,6 +374,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
 
             var updateMetadataNotContent = clientSidePage.FieldValues.ContainsKey("WT_UpdatePageMetaDataNotContent");
+            var skipCommentToggle = clientSidePage.FieldValues.ContainsKey("WT_SkipCommentToggle");
             PnPCore.IPage page = null;
             if (exists)
             {
@@ -496,8 +530,16 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             // Add content on the page, not needed for repost pages
             if (page.LayoutType != PnPCore.PageLayoutType.RepostPage)
             {
-                // Load existing available controls
-                var componentsToAdd = page.AvailablePageComponents();
+                IEnumerable<PnPCore.IPageComponent> componentsToAdd;
+                lock (pageComponentsCache)
+                {
+                    if (!pageComponentsCache.TryGetValue(page.PnPContext.Uri.ToString(), out componentsToAdd))
+                    {
+                        // Load existing available controls
+                        componentsToAdd = page.AvailablePageComponents();
+                        pageComponentsCache.Add(page.PnPContext.Uri.ToString(), componentsToAdd);
+                    }
+                }
 
                 // if no section specified then add a default single column section
                 if (!clientSidePage.Sections.Any())
@@ -1040,18 +1082,32 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             bool isDirty = false;
             if (!string.IsNullOrEmpty(clientSidePage.ContentTypeID))
             {
-                ContentTypeId bestMatchCT = fileAfterSave.ListItemAllFields.ParentList.BestMatchContentTypeId(clientSidePage.ContentTypeID);
-                ContentTypeId currentCT = fileAfterSave.ListItemAllFields.FieldExistsAndUsed(ContentTypeIdField) ? ((ContentTypeId)fileAfterSave.ListItemAllFields[ContentTypeIdField]) : null;
-
-                if (currentCT == null)
+                // ==============================================================================================
+                // HEU optimization to prevent content types for a list to be loaded for every page provisioned
+                // note: this has the assumption baked in that the list item has NOT yet the correct content type; this is specific to WikiTraccs and provisioning pages with custom content type derived from Site Page
+                if (contentTypeIdOnSitePagesListCache.TryGetValue((page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID), out var bestMatchCt) && !string.IsNullOrEmpty(bestMatchCt))
                 {
-                    fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCT.StringValue;
+                    fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCt;
                     isDirty = true;
                 }
-                else if (currentCT != null && !currentCT.IsChildOf(bestMatchCT))
+                else
+                // ==============================================================================================
                 {
-                    fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCT.StringValue;
-                    isDirty = true;
+                    ContentTypeId bestMatchCT = fileAfterSave.ListItemAllFields.ParentList.BestMatchContentTypeId(clientSidePage.ContentTypeID);
+                    ContentTypeId currentCT = fileAfterSave.ListItemAllFields.FieldExistsAndUsed(ContentTypeIdField) ? ((ContentTypeId)fileAfterSave.ListItemAllFields[ContentTypeIdField]) : null;
+
+                    if (currentCT == null)
+                    {
+                        fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCT.StringValue;
+                        contentTypeIdOnSitePagesListCache.Add((page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID), bestMatchCT.StringValue);
+                        isDirty = true;
+                    }
+                    else if (currentCT != null && !currentCT.IsChildOf(bestMatchCT))
+                    {
+                        fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCT.StringValue;
+                        contentTypeIdOnSitePagesListCache.Add((page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID), bestMatchCT.StringValue);
+                        isDirty = true;
+                    }
                 }
             }
 
@@ -1076,6 +1132,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 web.Context.ExecuteQueryRetry();
             }
 
+            bool? isModerationEnabled = null;
+            bool? isMinorVersionEnabled = null;
+
             if (clientSidePage.FieldValues != null && clientSidePage.FieldValues.Any())
             {
                 // HEU: adjusted update logic depending on whether a page is new or not
@@ -1083,6 +1142,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 var isNewlyCreatedPage = preCreatedPages.Contains(url);
                 // ==============================================================
                 ListItemUtilities.UpdateListItem(fileAfterSave.ListItemAllFields, parser, clientSidePage.FieldValues, isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion);
+                isModerationEnabled = fileAfterSave.ListItemAllFields.ParentList.EnableModeration;
+                isMinorVersionEnabled = fileAfterSave.ListItemAllFields.ParentList.EnableMinorVersions;
             }
 
             // Set page property bag values
@@ -1117,15 +1178,19 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     }
                 }
 
-                if (page.LayoutType != PnPCore.PageLayoutType.RepostPage)
+                // HEU: save one call
+                if (!skipCommentToggle)
                 {
-                    if (clientSidePage.EnableComments)
+                    if (page.LayoutType != PnPCore.PageLayoutType.RepostPage)
                     {
-                        page.EnableComments();
-                    }
-                    else
-                    {
-                        page.DisableComments();
+                        if (clientSidePage.EnableComments)
+                        {
+                            page.EnableComments();
+                        }
+                        else
+                        {
+                            page.DisableComments();
+                        }
                     }
                 }
             }
@@ -1133,7 +1198,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             // Publish page, page templates cannot be published
             if (clientSidePage.Publish && !clientSidePage.PromoteAsTemplate)
             {
-                page.Publish();
+                page.PublishAsync(null, isMinorVersionEnabled, isModerationEnabled).GetAwaiter().GetResult();
             }
 
             // Set any security on the page
@@ -1230,7 +1295,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 }
                 else
                 {
-                    createdPageName = page.Save(pageName);
+                    createdPageName = page.Save(pageName, HEUassumeListItemMissing: true);
                 }
 
                 url = $"{pagesLibrary}/{createdPageName}";

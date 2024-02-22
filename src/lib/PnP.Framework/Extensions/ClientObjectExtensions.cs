@@ -134,7 +134,7 @@ namespace Microsoft.SharePoint.Client
         /// <returns>Property value</returns>
         public static void EnsureProperties<T>(this T clientObject, params Expression<Func<T, object>>[] propertySelector) where T : ClientObject
         {
-            Task.Run(() => EnsurePropertiesImplementation(clientObject, propertySelector)).GetAwaiter().GetResult();
+            Task.Run(() => EnsurePropertiesImplementation(clientObject, true, propertySelector)).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -147,9 +147,26 @@ namespace Microsoft.SharePoint.Client
         public static async Task EnsurePropertiesAsync<T>(this T clientObject, params Expression<Func<T, object>>[] propertySelector) where T : ClientObject
         {
             await new SynchronizationContextRemover();
-            await EnsurePropertiesImplementation(clientObject, propertySelector);
+            await EnsurePropertiesImplementation(clientObject, true, propertySelector);
         }
-        internal static async Task EnsurePropertiesImplementation<T>(this T clientObject, params Expression<Func<T, object>>[] propertySelector) where T : ClientObject
+
+        public enum ScheduleResult
+        {
+            AllPropertiesAreAvailable,
+            NeedExecuteQueryToGetProperties
+        }
+        // HEU adding method to collect more properties
+        public static async Task<ScheduleResult> SchedulePropertiesAsync<T>(this T clientObject, params Expression<Func<T, object>>[] propertySelector) where T : ClientObject
+        {
+            await new SynchronizationContextRemover();
+            return await EnsurePropertiesImplementation(clientObject, false, propertySelector);
+        }
+        public static ScheduleResult ScheduleProperties<T>(this T clientObject, params Expression<Func<T, object>>[] propertySelector) where T : ClientObject
+        {
+            return Task.Run(() => SchedulePropertiesAsync(clientObject, propertySelector)).GetAwaiter().GetResult();
+        }
+
+        internal static async Task<ScheduleResult> EnsurePropertiesImplementation<T>(this T clientObject, bool executeQuery, params Expression<Func<T, object>>[] propertySelector) where T : ClientObject
         {
             var dirty = false;
             foreach (Expression<Func<T, object>> expression in propertySelector)
@@ -190,7 +207,17 @@ namespace Microsoft.SharePoint.Client
 
             if (dirty)
             {
-                await clientObject.Context.ExecuteQueryRetryAsync();
+                if (executeQuery)
+                {
+                    await clientObject.Context.ExecuteQueryRetryAsync();
+                    return ScheduleResult.AllPropertiesAreAvailable;
+                } else
+                {
+                    return ScheduleResult.NeedExecuteQueryToGetProperties;
+                }
+            } else
+            {
+                return ScheduleResult.AllPropertiesAreAvailable;
             }
         }
 
