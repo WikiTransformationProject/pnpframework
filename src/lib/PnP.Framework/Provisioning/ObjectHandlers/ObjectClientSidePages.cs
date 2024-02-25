@@ -16,6 +16,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using PnPCore = PnP.Core.Model.SharePoint;
 
 namespace PnP.Framework.Provisioning.ObjectHandlers
@@ -24,6 +25,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
     {
         private PnPContext pnpContext;
         private PnPCore.IPage dummyPage;
+        private Func<string> getTemplateFolderName;
         private const string ContentTypeIdField = "ContentTypeId";
         private const string FileRefField = "FileRef";
         private const string SPSitePageFlagsField = "_SPSitePageFlags";
@@ -42,8 +44,16 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             using (var scope = new PnPMonitoredScope(this.Name))
             {
                 pnpContext = PnPCoreSdk.Instance.GetPnPContext(web.Context as ClientContext);
-                // GET /sites/2022-08-deleteme/_api/web/lists?$select=Id%2cTitle%2cBaseTemplate%2cEnableVersioning%2cEnableMinorVersions%2cEnableModeration%2cForceCheckout%2cEnableFolderCreation%2cListItemEntityTypeFullName%2cRootFolder%2fServerRelativeUrl%2cRootFolder%2fUniqueId%2cFields&$expand=RootFolder%2cRootFolder%2fProperties%2cFields&$filter=BaseTemplate+eq+119&$top=100 HTTP/1.1
-                dummyPage = pnpContext.Web.NewPage();
+                
+                getTemplateFolderName = () => 
+                {
+                    if (null == dummyPage)
+                    {
+                        // GET /sites/2022-08-deleteme/_api/web/lists?$select=Id%2cTitle%2cBaseTemplate%2cEnableVersioning%2cEnableMinorVersions%2cEnableModeration%2cForceCheckout%2cEnableFolderCreation%2cListItemEntityTypeFullName%2cRootFolder%2fServerRelativeUrl%2cRootFolder%2fUniqueId%2cFields&$expand=RootFolder%2cRootFolder%2fProperties%2cFields&$filter=BaseTemplate+eq+119&$top=100 HTTP/1.1
+                        dummyPage = pnpContext.Web.NewPage();
+                    }
+                    return dummyPage.GetTemplatesFolder();
+                };
 
                 web.EnsureProperties(w => w.ServerRelativeUrl);
 
@@ -58,7 +68,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 EnsureSpaces(web, template, scope);
 
                 var currentPageIndex = 0;
-                var retrievedFilesCacheHeu = new Dictionary<string, Microsoft.SharePoint.Client.File>();
+                // var retrievedFilesCacheHeu = new Dictionary<string, Microsoft.SharePoint.Client.File>();
                 // pre create the needed pages so we can fill the needed tokens which might be used later on when we put web parts on those pages
                 foreach (var clientSidePage in template.ClientSidePages)
                 {
@@ -71,12 +81,20 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     // 7. POST ProcessQuery -> GetFileByServerRelativePath
 
                     // 2024-02-22: down from 7 to 6 calls
-                    var (preCreatedPage, preCreatedPageFileHeu) = PreCreatePage(web, template, parser, clientSidePage, pagesLibrary, ref currentPageIndex);
-                    if (preCreatedPage != null)
+                    var (preCreatedPageUrl, parserActions) = Task.Run(() => PagePreCreator.PreCreatePageAsync(web, clientSidePage, pagesLibrary, getTemplateFolderName, (title, message) => {
+                        currentPageIndex++;
+                        WriteSubProgress(title, message, currentPageIndex, template.ClientSidePages.Count);
+
+                    })).GetAwaiter().GetResult();
+                    foreach (var parserAction in parserActions)
                     {
-                        retrievedFilesCacheHeu[preCreatedPage] = preCreatedPageFileHeu;
-                        preCreatedPages.Add(preCreatedPage);
+                        parserAction(parser, web);
                     }
+                    // if (preCreatedPageUrl != null)
+                    // {
+                    //     retrievedFilesCacheHeu[preCreatedPageUrl] = preCreatedPageFileHeu;
+                    //     preCreatedPages.Add(preCreatedPageUrl);
+                    // }
 
                     if (clientSidePage.Translations.Any())
                     {
@@ -87,7 +105,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         {
                             // Get the existing template page
                             //page = web.LoadClientSidePage($"{Pages.ClientSidePage.GetTemplatesFolder(pagesLibraryList)}/{pageName}");
-                            page = pnpContext.Web.LoadClientSidePage($"{dummyPage.GetTemplatesFolder()}/{pageName}");
+                            page = pnpContext.Web.LoadClientSidePage($"{getTemplateFolderName()}/{pageName}");
                         }
                         else
                         {
@@ -148,7 +166,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                 var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
                                 web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
                                 web.Context.ExecuteQueryRetry();
-                                retrievedFilesCacheHeu[url] = file;
+                                //retrievedFilesCacheHeu[url] = file;
 
                                 // Fill token
                                 var pageUrlForToken = file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray());
@@ -161,11 +179,12 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
 
                 var getFromFileCacheByUrl = (string url) =>
                 {
-                    if (retrievedFilesCacheHeu.TryGetValue(url, out var file))
-                    {
-                        return file;
-                    }
-                    return null;
+                    return (Microsoft.SharePoint.Client.File)null;
+                    // if (retrievedFilesCacheHeu.TryGetValue(url, out var file))
+                    // {
+                    //     return file;
+                    // }
+                    // return null;
                 };
 
                 currentPageIndex = 0;
@@ -314,7 +333,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
         }
 
         // page components shouldn't change for a site during the course of what WikiTraccs does
-        private static Dictionary<string, IEnumerable<PnPCore.IPageComponent>> pageComponentsCache = new();
+        private static readonly Dictionary<string, IEnumerable<PnPCore.IPageComponent>> pageComponentsCache = new();
         // cache our content type ID; don't need to look that up for every page again
         private static readonly Dictionary<(string siteUrl, string contentTypeIdFromTemplate), string> contentTypeIdOnSitePagesListCache = new();
 
@@ -332,7 +351,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 else
                 {
                     //url = $"{pagesLibrary}/{Pages.ClientSidePage.GetTemplatesFolder(pagesLibraryList)}/{pageName}";
-                    url = $"{pagesLibrary}/{dummyPage.GetTemplatesFolder()}/{pageName}";
+                    url = $"{pagesLibrary}/{getTemplateFolderName()}/{pageName}";
                 }
             }
 
@@ -389,7 +408,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         }
                         else
                         {
-                            page = pnpContext.Web.LoadClientSidePage($"{dummyPage.GetTemplatesFolder()}/{pageName}");
+                            page = pnpContext.Web.LoadClientSidePage($"{getTemplateFolderName()}/{pageName}");
                         }
                     }
                     else
@@ -1066,7 +1085,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             // Persist the page
             if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
             {
-                page.SaveAsTemplate(pageName.Replace($"{dummyPage.GetTemplatesFolder()}/", ""));
+                page.SaveAsTemplate(pageName.Replace($"{getTemplateFolderName()}/", ""));
             }
             else
             {
@@ -1210,18 +1229,20 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
         }
 
-        private static string DeterminePageName(TokenParser parser, BaseClientSidePage clientSidePage)
+#nullable enable
+        public static string DeterminePageName(TokenParser? parser, BaseClientSidePage clientSidePage)
         {
             string pageName;
-            if (clientSidePage is ClientSidePage)
+            if (clientSidePage is ClientSidePage csp)
             {
                 if (clientSidePage.PromoteAsTemplate)
                 {
-                    pageName = $"{System.IO.Path.GetFileNameWithoutExtension(parser.ParseString((clientSidePage as ClientSidePage).PageName))}.aspx";
+                    pageName = parser?.ParseString(csp.PageName) ?? csp.PageName;
+                    pageName = $"{System.IO.Path.GetFileNameWithoutExtension(pageName)}.aspx";
                 }
                 else
                 {
-                    var parsedPageName = parser.ParseString((clientSidePage as ClientSidePage).PageName);
+                    var parsedPageName = parser?.ParseString(csp.PageName) ?? csp.PageName;
                     var pageNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(parsedPageName);
                     var pageFolder = System.IO.Path.GetDirectoryName(parsedPageName);
                     if (!string.IsNullOrEmpty(pageFolder))
@@ -1234,91 +1255,93 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
             else
             {
-                pageName = parser.ParseString((clientSidePage as TranslatedClientSidePage).PageName);
+                pageName = parser?.ParseString((clientSidePage as TranslatedClientSidePage)!.PageName) ?? (clientSidePage as TranslatedClientSidePage)!.PageName;
             }
 
             return pageName;
         }
+#nullable restore
 
-        private (string url, Microsoft.SharePoint.Client.File file) PreCreatePage(Web web, ProvisioningTemplate template, TokenParser parser, BaseClientSidePage clientSidePage, string pagesLibrary, ref int currentPageIndex)
-        {
-            string pageName = DeterminePageName(parser, clientSidePage);
-            string url = $"{pagesLibrary}/{pageName}";
 
-            if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
-            {
-                url = $"{pagesLibrary}/{dummyPage.GetTemplatesFolder()}/{pageName}";
-            }
+        // private (string url, Microsoft.SharePoint.Client.File file) PreCreatePage(Web web, ProvisioningTemplate template, TokenParser parser, BaseClientSidePage clientSidePage, string pagesLibrary, ref int currentPageIndex)
+        // {
+        //     string pageName = DeterminePageName(parser, clientSidePage);
+        //     string url = $"{pagesLibrary}/{pageName}";
 
-            // Write page level status messages, needed in case many pages are provisioned
-            currentPageIndex++;
-            WriteSubProgress("ClientSidePage", $"Create {pageName} stub", currentPageIndex, template.ClientSidePages.Count);
+        //     if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
+        //     {
+        //         url = $"{pagesLibrary}/{dummyPage.GetTemplatesFolder()}/{pageName}";
+        //     }
 
-            url = UrlUtility.Combine(web.ServerRelativeUrl, url);
+        //     // Write page level status messages, needed in case many pages are provisioned
+        //     currentPageIndex++;
+        //     WriteSubProgress("ClientSidePage", $"Create {pageName} stub", currentPageIndex, template.ClientSidePages.Count);
 
-            var exists = true;
-            try
-            {
-                var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath, f => f.Exists);
-                web.Context.ExecuteQueryRetry();
+        //     url = UrlUtility.Combine(web.ServerRelativeUrl, url);
 
-                // Fill token
-                parser.AddToken(new PageUniqueIdToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
-                parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+        //     var exists = true;
+        //     try
+        //     {
+        //         var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
+        //         web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath, f => f.Exists);
+        //         web.Context.ExecuteQueryRetry();
 
-                exists = file.Exists;
-            }
-            catch (ServerException ex)
-            {
-                if (ex.ServerErrorTypeName == "System.IO.FileNotFoundException")
-                {
-                    exists = false;
-                }
-            }
+        //         // Fill token
+        //         parser.AddToken(new PageUniqueIdToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+        //         parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
 
-            if (!exists)
-            {
-                // Pre-create the page    
-                PnPCore.IPage page = web.AddClientSidePage(pageName);
+        //         exists = file.Exists;
+        //     }
+        //     catch (ServerException ex)
+        //     {
+        //         if (ex.ServerErrorTypeName == "System.IO.FileNotFoundException")
+        //         {
+        //             exists = false;
+        //         }
+        //     }
 
-                // Set page layout now, because once it's set, it can't be changed.
-                if (!string.IsNullOrEmpty(clientSidePage.Layout))
-                {
-                    page.LayoutType = (PnPCore.PageLayoutType)Enum.Parse(typeof(PnPCore.PageLayoutType), clientSidePage.Layout);
-                }
+        //     if (!exists)
+        //     {
+        //         // Pre-create the page    
+        //         PnPCore.IPage page = web.AddClientSidePage(pageName);
 
-                string createdPageName;
-                if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
-                {
-                    createdPageName = page.SaveAsTemplate(pageName);
-                }
-                else
-                {
-                    createdPageName = page.Save(pageName, HEUassumeListItemMissing: true);
-                }
+        //         // Set page layout now, because once it's set, it can't be changed.
+        //         if (!string.IsNullOrEmpty(clientSidePage.Layout))
+        //         {
+        //             page.LayoutType = (PnPCore.PageLayoutType)Enum.Parse(typeof(PnPCore.PageLayoutType), clientSidePage.Layout);
+        //         }
 
-                url = $"{pagesLibrary}/{createdPageName}";
-                if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
-                {
-                    url = $"{pagesLibrary}/{dummyPage.GetTemplatesFolder()}/{pageName}";
-                }
-                url = UrlUtility.Combine(web.ServerRelativeUrl, url);
+        //         string createdPageName;
+        //         if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
+        //         {
+        //             createdPageName = page.SaveAsTemplate(pageName);
+        //         }
+        //         else
+        //         {
+        //             createdPageName = page.Save(pageName, HEUassumeListItemMissing: true);
+        //         }
 
-                var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
-                web.Context.ExecuteQueryRetry();
+        //         url = $"{pagesLibrary}/{createdPageName}";
+        //         if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
+        //         {
+        //             url = $"{pagesLibrary}/{dummyPage.GetTemplatesFolder()}/{pageName}";
+        //         }
+        //         url = UrlUtility.Combine(web.ServerRelativeUrl, url);
 
-                // Fill token
-                parser.AddToken(new PageUniqueIdToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
-                parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+        //         var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
+        //         web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
+        //         web.Context.ExecuteQueryRetry();
 
-                // Track that we pre-added this page
-                return (url, file);
-            }
+        //         // Fill token
+        //         parser.AddToken(new PageUniqueIdToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+        //         parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
 
-            return (null, null);
-        }
+        //         // Track that we pre-added this page
+        //         return (url, file);
+        //     }
+
+        //     return (null, null);
+        // }
 
         public override ProvisioningTemplate ExtractObjects(Web web, ProvisioningTemplate template, ProvisioningTemplateCreationInformation creationInfo)
         {
@@ -1358,4 +1381,154 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             return _willExtract.Value;
         }
     }
+
+#nullable enable
+    public static class PagePreCreator
+    {
+        static readonly object _lock = new();
+        // note: do NOT cache the actual file because pre-creation can be called from another thread and parallel to the actual page creation
+        static readonly Dictionary<(string siteUrl, string finalPageName), Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions)>> preCreatedFileUrls = new();
+
+        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions)> PreCreateStandardWikiTraccsPageAsync(
+            Web web, 
+            string pageName,
+            string pagesLibrary,
+            Action<string, string>? writeSubProgress)
+        {
+            var csp = new ClientSidePage()
+            {
+                PageName = pageName,
+                PromoteAsTemplate = false,
+            };
+            return PreCreatePageAsync(web, csp, pagesLibrary, null, writeSubProgress);
+        }
+
+        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions)> PreCreatePageAsync(
+            Web web, 
+            BaseClientSidePage clientSidePage,
+            string pagesLibrary,
+            Func<string>? getTemplatesFolderName,
+            Action<string, string>? writeSubProgress)
+        {
+            var serverRelativeWebUrl = $"/{new Uri(web.Context.Url).AbsolutePath.TrimStart('/')}";
+            var pageName = ObjectClientSidePages.DeterminePageName(null, clientSidePage);
+            lock (_lock)
+            {
+                if (!preCreatedFileUrls.TryGetValue((serverRelativeWebUrl, pageName), out var task))
+                {
+                    task = PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress);
+                    preCreatedFileUrls[(serverRelativeWebUrl, pageName)] = task;
+                }
+                return task;
+            }            
+        }
+
+        private static async Task<(string? serverRelativePageUrl, List<Action<TokenParser, Web>> parserActions)> PreCreatePageAsyncImpl(
+            Web web, 
+            BaseClientSidePage clientSidePage,
+            string pagesLibrary,
+            Func<string>? getTemplatesFolderName,
+            Action<string, string>? writeSubProgress)
+        {
+            var parserActions = new List<Action<TokenParser, Web>>();
+            if (clientSidePage.PromoteAsTemplate && null == getTemplatesFolderName)
+            {
+                // not supported
+                return (null, parserActions);
+            }
+            string pageName = ObjectClientSidePages.DeterminePageName(null, clientSidePage);
+            if (string.IsNullOrWhiteSpace(pageName))
+            {
+                throw new NotSupportedException("Need to set name of page to preload");
+            }
+            var serverRelativeWebUrl = $"/{new Uri(web.Context.Url).AbsolutePath.TrimStart('/')}";
+
+            string url = $"{pagesLibrary}/{pageName}";
+
+            if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
+            {
+                url = $"{pagesLibrary}/{getTemplatesFolderName!()}/{pageName}";
+            }
+
+            // Write page level status messages, needed in case many pages are provisioned
+            
+            //currentPageIndex++;
+            writeSubProgress?.Invoke("ClientSidePage", $"Create {pageName} stub"); //, currentPageIndex, template.ClientSidePages.Count);
+
+            
+            url = UrlUtility.Combine(serverRelativeWebUrl, url);
+
+            var exists = true;
+            try
+            {
+                var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
+                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath, f => f.Exists);
+                await web.Context.ExecuteQueryRetryAsync().ConfigureAwait(false);
+
+                var val1 = file.ServerRelativePath.DecodedUrl.Substring(serverRelativeWebUrl.Length).TrimStart("/".ToCharArray());
+                var uniqueId1 = file.UniqueId;
+                parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdToken(otherWeb, val1, uniqueId1)));
+                parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdEncodedToken(otherWeb, val1, uniqueId1)));
+                // Fill token
+                // parser.AddToken(new PageUniqueIdToken(       web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+                // parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+
+                exists = file.Exists;
+            }
+            catch (ServerException ex)
+            {
+                if (ex.ServerErrorTypeName == "System.IO.FileNotFoundException")
+                {
+                    exists = false;
+                }
+            }
+
+            if (!exists)
+            {
+                // Pre-create the page    
+                PnPCore.IPage page = await web.AddClientSidePageAsync(pageName).ConfigureAwait(false);
+
+                // Set page layout now, because once it's set, it can't be changed.
+                if (!string.IsNullOrEmpty(clientSidePage.Layout))
+                {
+                    page.LayoutType = (PnPCore.PageLayoutType)Enum.Parse(typeof(PnPCore.PageLayoutType), clientSidePage.Layout);
+                }
+
+                string createdPageName;
+                if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
+                {
+                    createdPageName = page.SaveAsTemplate(pageName);
+                }
+                else
+                {
+                    createdPageName = page.Save(pageName, HEUassumeListItemMissing: true);
+                }
+
+                url = $"{pagesLibrary}/{createdPageName}";
+                if (clientSidePage.Layout == "Article" && clientSidePage.PromoteAsTemplate)
+                {
+                    url = $"{pagesLibrary}/{getTemplatesFolderName!()}/{pageName}";
+                }
+                url = UrlUtility.Combine(serverRelativeWebUrl, url);
+
+                var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
+                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
+                await web.Context.ExecuteQueryRetryAsync().ConfigureAwait(false);
+
+                // Fill token
+                // parser.AddToken(new PageUniqueIdToken(       web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+                // parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
+                var val1 = file.ServerRelativePath.DecodedUrl.Substring(serverRelativeWebUrl.Length).TrimStart("/".ToCharArray());
+                var uniqueId1 = file.UniqueId;
+                parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdToken(otherWeb, val1, uniqueId1)));
+                parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdEncodedToken(otherWeb, val1, uniqueId1)));
+
+                return (url, parserActions);
+            }
+
+            return (null, parserActions);
+        }
+
+    }    
+#nullable restore
 }
