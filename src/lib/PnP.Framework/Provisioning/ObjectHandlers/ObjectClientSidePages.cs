@@ -44,8 +44,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             using (var scope = new PnPMonitoredScope(this.Name))
             {
                 pnpContext = PnPCoreSdk.Instance.GetPnPContext(web.Context as ClientContext);
-                
-                getTemplateFolderName = () => 
+
+                getTemplateFolderName = () =>
                 {
                     if (null == dummyPage)
                     {
@@ -81,7 +81,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     // 7. POST ProcessQuery -> GetFileByServerRelativePath
 
                     // 2024-02-22: down from 7 to 6 calls
-                    var (preCreatedPageUrl, parserActions) = Task.Run(() => PagePreCreator.PreCreatePageAsync(web, clientSidePage, pagesLibrary, getTemplateFolderName, (title, message) => {
+                    var (_, parserActions, _) = Task.Run(() => PagePreCreator.PreCreatePageAsync(web, clientSidePage, pagesLibrary, getTemplateFolderName, (title, message) => {
                         currentPageIndex++;
                         WriteSubProgress(title, message, currentPageIndex, template.ClientSidePages.Count);
 
@@ -90,11 +90,6 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     {
                         parserAction(parser, web);
                     }
-                    // if (preCreatedPageUrl != null)
-                    // {
-                    //     retrievedFilesCacheHeu[preCreatedPageUrl] = preCreatedPageFileHeu;
-                    //     preCreatedPages.Add(preCreatedPageUrl);
-                    // }
 
                     if (clientSidePage.Translations.Any())
                     {
@@ -179,12 +174,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
 
                 var getFromFileCacheByUrl = (string url) =>
                 {
+                    // HEU: don't cache files... precreating pages might be called with another context from another thread; the part below needs to get fresh instances
                     return (Microsoft.SharePoint.Client.File)null;
-                    // if (retrievedFilesCacheHeu.TryGetValue(url, out var file))
-                    // {
-                    //     return file;
-                    // }
-                    // return null;
                 };
 
                 currentPageIndex = 0;
@@ -479,7 +470,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     }
                 }
             }
-            
+
             if (!exists || isBrokenPage)
             {
                 // Create new client side page
@@ -630,7 +621,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         targetSection.IsExpanded = section.IsExpanded;
                         targetSection.DisplayName = section.DisplayName;
                         targetSection.IconAlignment = (PnP.Core.Model.SharePoint.IconAlignment)Enum.Parse(
-                            typeof(PnP.Core.Model.SharePoint.IconAlignment), 
+                            typeof(PnP.Core.Model.SharePoint.IconAlignment),
                             section.IconAlignment.ToString());
                         targetSection.ShowDividerLine = section.ShowDividerLine;
                     }
@@ -1387,10 +1378,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
     {
         static readonly object _lock = new();
         // note: do NOT cache the actual file because pre-creation can be called from another thread and parallel to the actual page creation
-        static readonly Dictionary<(string siteUrl, string finalPageName), Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions)>> preCreatedFileUrls = new();
+        static readonly Dictionary<(string siteUrl, string finalPageName), Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)>> preCreatedFileUrls = new();
 
-        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions)> PreCreateStandardWikiTraccsPageAsync(
-            Web web, 
+        // note that "didExists" can mean anything of the following: an actual WikiTraccs page with this name existed; a previously created, unfinished, precreated page exists; pre-page creation was scheduled by a previous call (result kind of unclear!?)
+        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)> PreCreateStandardWikiTraccsPageAsync(
+            Web web,
             string pageName,
             string pagesLibrary,
             Action<string, string>? writeSubProgress)
@@ -1403,8 +1395,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             return PreCreatePageAsync(web, csp, pagesLibrary, null, writeSubProgress);
         }
 
-        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions)> PreCreatePageAsync(
-            Web web, 
+        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)> PreCreatePageAsync(
+            Web web,
             BaseClientSidePage clientSidePage,
             string pagesLibrary,
             Func<string>? getTemplatesFolderName,
@@ -1419,12 +1411,21 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     task = PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress);
                     preCreatedFileUrls[(serverRelativeWebUrl, pageName)] = task;
                 }
+                else
+                {
+                    task = Task.Run(async () =>
+                    {
+                        var (serverRelativePageUrl, parserActions, didExist) = await PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress).ConfigureAwait(false);
+                        // mark as "didExist"
+                        return (serverRelativePageUrl, parserActions, (bool?)true);
+                    });
+                }
                 return task;
-            }            
+            }
         }
 
-        private static async Task<(string? serverRelativePageUrl, List<Action<TokenParser, Web>> parserActions)> PreCreatePageAsyncImpl(
-            Web web, 
+        private static async Task<(string? serverRelativePageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)> PreCreatePageAsyncImpl(
+            Web web,
             BaseClientSidePage clientSidePage,
             string pagesLibrary,
             Func<string>? getTemplatesFolderName,
@@ -1434,7 +1435,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             if (clientSidePage.PromoteAsTemplate && null == getTemplatesFolderName)
             {
                 // not supported
-                return (null, parserActions);
+                return (null, parserActions, null);
             }
             string pageName = ObjectClientSidePages.DeterminePageName(null, clientSidePage);
             if (string.IsNullOrWhiteSpace(pageName))
@@ -1451,11 +1452,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
 
             // Write page level status messages, needed in case many pages are provisioned
-            
+
             //currentPageIndex++;
             writeSubProgress?.Invoke("ClientSidePage", $"Create {pageName} stub"); //, currentPageIndex, template.ClientSidePages.Count);
 
-            
+
             url = UrlUtility.Combine(serverRelativeWebUrl, url);
 
             var exists = true;
@@ -1523,12 +1524,12 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdToken(otherWeb, val1, uniqueId1)));
                 parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdEncodedToken(otherWeb, val1, uniqueId1)));
 
-                return (url, parserActions);
+                return (url, parserActions, false);
             }
 
-            return (null, parserActions);
+            return (url, parserActions, true);
         }
 
-    }    
+    }
 #nullable restore
 }
