@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace PnP.Framework.Utilities.OAuth
 {
-    internal class DefaultBrowserUi : ICustomWebUi
+    public class DefaultBrowserUi : ICustomWebUi
 
     {
         private Action<string, int> _openBrowserAction = null;
