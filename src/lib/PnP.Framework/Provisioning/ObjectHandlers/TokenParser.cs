@@ -764,10 +764,13 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
             _tokens.RemoveAll(listTokenTypes);
 
-            web.Context.Load(web.Lists, ls => ls.Include(l => l.Id, l => l.Title, l => l.RootFolder.ServerRelativeUrl, l => l.Views, l => l.ContentTypes, l => l.TitleResource));
+            web.Context.Load(web.Lists, ls => ls.Include(l => l.Id, l => l.Title, l => l.RootFolder.ServerRelativeUrl, l => l.Views, l => l.ContentTypes, l => l.TitleResource, /* HEU: SUPPORT ROOT FOLDERS IN ADDITION TO TITLE FOR LISTID TOKEN =>*/ l => l.RootFolder.Name));
             web.Context.ExecuteQueryRetry();
             foreach (var list in web.Lists)
             {
+                // HEU: SUPPORT ROOT FOLDERS IN ADDITION TO TITLE FOR LISTID TOKEN:
+                _tokens.Add(new ListIdToken(web, $"wtproot_{list.RootFolder.Name}", list.Id));
+
                 _tokens.Add(new ListIdToken(web, list.Title, list.Id));
                 // _tokens.Add(new ListIdToken(web, list.Title, Guid.Empty));
                 var mainLanguageName = GetListTitleForMainLanguage(web, list.Title);
@@ -775,6 +778,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 {
                     _tokens.Add(new ListIdToken(web, mainLanguageName, list.Id));
                 }
+
                 _tokens.Add(new ListUrlToken(web, list.Title, list.RootFolder.ServerRelativeUrl.Substring(web.ServerRelativeUrl.TrimEnd(new char[] { '/' }).Length + 1)));
 
                 foreach (var view in list.Views)
@@ -793,13 +797,16 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 // Add lists from rootweb
                 var rootWeb = (web.Context as ClientContext).Site.RootWeb;
                 rootWeb.EnsureProperty(w => w.ServerRelativeUrl);
-                rootWeb.Context.Load(rootWeb.Lists, ls => ls.Include(l => l.Id, l => l.Title, l => l.RootFolder.ServerRelativeUrl, l => l.Views));
+                rootWeb.Context.Load(rootWeb.Lists, ls => ls.Include(l => l.Id, l => l.Title, l => l.RootFolder.ServerRelativeUrl, l => l.Views, /* HEU: SUPPORT ROOT FOLDERS IN ADDITION TO TITLE FOR LISTID TOKEN =>*/ l => l.RootFolder.Name));
                 rootWeb.Context.ExecuteQueryRetry();
                 foreach (var rootList in rootWeb.Lists)
                 {
                     // token already there? Skip the list
                     if (web.Lists.FirstOrDefault(l => l.Title == rootList.Title) == null)
                     {
+                        // HEU: SUPPORT ROOT FOLDERS IN ADDITION TO TITLE FOR LISTID TOKEN:
+                        _tokens.Add(new ListIdToken(web, $"wtproot_{rootList.RootFolder.Name}", rootList.Id));
+
                         _tokens.Add(new ListIdToken(web, rootList.Title, rootList.Id));
                         _tokens.Add(new ListUrlToken(web, rootList.Title, rootList.RootFolder.ServerRelativeUrl.Substring(rootWeb.ServerRelativeUrl.TrimEnd(new char[] { '/' }).Length + 1)));
 
