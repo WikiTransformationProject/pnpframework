@@ -126,7 +126,7 @@ namespace PnP.Framework.Http
         private void BuildServiceFactory()
         {
             // Use TLS 1.2 as default connection
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13 | SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
 
             // Create container
             var serviceCollection = new ServiceCollection();

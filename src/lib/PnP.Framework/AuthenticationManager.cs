@@ -295,7 +295,7 @@ namespace PnP.Framework
         public AuthenticationManager()
         {
             // Set the TLS preference. Needed on some server os's to work when Office 365 removes support for TLS 1.0
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls13 | SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
         }
 
         private AuthenticationManager(ACSTokenGenerator oAuthAuthenticationProvider) : this()
