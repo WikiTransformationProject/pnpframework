@@ -6,6 +6,66 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+- Update AuthenticationManager.cs for GCC (ie UsGovernment) Regions #1047, #1048 [SteveWinward - Steve Winward]
+- Updated pages export logic to support the new page header model via full width page header web part [czullu - Christian Zuellig]
+
+## [1.16.0]
+
+### Added
+
+- Support for using Managed Identity with PnP Framework #1002 [koenzomers - Koen Zomers]
+- Added additional parameters to M365 Group creation to support setting SharePoint site URL, LCID, HubSiteId and SiteDesignId #1026 [gautamdsheth - Gautam Sheth]
+- Improve Managed Identity token acquisition process to use built-in methods which are more reliable. #1027 [gautamdsheth - Gautam Sheth]
+
+### Changed
+
+- Optimizations to "TokenParser" performance #964 [fzbm - Florian Zink]
+- Added support for vanity URLs in the `GetSitePropertiesById` extension method #1012 [koenzomers - Koen Zomers]
+- Bumped version of Microsoft.Identity.Client package version to 4.61.1 #1014, #1023 [gautamdsheth - Gautam Sheth]
+- Fix issue in ConfigureOnPremisesContext causing 403 forbidden responses on on-premise environments #1011 [nathan-swannet - Nathan Swannet]
+- Fix "The request was already sent" error when getting app metadata (using AppManager) #896 [JoaoCruz2001 - João Cruz]
+- Fix issue in `DisableRequestAccess` method where we were unable to properly set disable access request email. [luismanez- Luis Manez]
+- Fix issue in Azure ACS auth for `AuthenticationManager` #1022 [dohly]
+
+## [1.15.0]
+
+### Added
+
+- Add ListDeletedUsers method to UsersUtility #956 [wilecoyotegenius - Konrad K.]
+
+### Changed
+
+- Add Site Collection App Catalog fields to BuilIinFieldId enum #952 [wilecoyotegenius - Konrad K.]
+- Upgrade to version 6.35.0 of System.IdentityModel.Tokens.Jwt #962 [eduardpaul - Eduard Paul]
+- Viva Announcement Library resulted in two pages libraries #975 [nils-a - Nils Andresen]
+- Fixed the GUID strings #969 [nils-a - Nils Andresen]
+- Improved list information in template MD conversion #989 [JGemkow - John Gemkow]
+
+## [1.14.0]
+
+### Added
+
+- Added Stream and XML option to load Tenant template #918 [koenzomers - Koen Zomers]
+- Implement adding labels to terms #934 [koskila - Antti K. Koskela]
+- Support for .NET 8.0 [jansenbe - Bert Jansen]
+
+### Changed
+
+- Added localization for modern audience fields #906 [nils-a - Nils Andresen]
+- Added support for setting TimeZoneId when creating a new site collection #907 [mmi-wp Mikkel Bukholt Mikkelsen]
+- Fixed non-taxonomy default folder values cause error when generating a provisioning template #915 [JakeStanger - Jake Stanger]
+- Removing the accents and unallowed characters when creating modern non group connected sites #922 [gautamdsheth - Gautam Sheth]
+- Added support for users utility in the other cloud environments #924 [gautamdsheth - Gautam Sheth]
+- Fixed occasional crash when setting default values #926 [JakeStanger - Jake Stanger]
+- Escape apostrophe in alias before calling DirectorySession/Group method #933 [magarma - Miguel Angel García Martínez]
+- Fixed unable to set column defaults on library root #947 [JakeStanger - Jake Stanger]
+
 ## [1.13.0]
 
 ### Added
