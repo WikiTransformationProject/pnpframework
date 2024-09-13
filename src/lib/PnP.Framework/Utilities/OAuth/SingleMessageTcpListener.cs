@@ -103,7 +103,7 @@ namespace PnP.Framework.Utilities.OAuth
             Match match = r1.Match(httpRequest);
             if (!match.Success)
             {
-                throw new InvalidOperationException("Not a GET query");
+                throw new InvalidOperationException($"Not a GET query: {httpRequest}");
             }
 
             getQuery = match.Groups[1].Value;
