@@ -5,6 +5,7 @@ using PnP.Core.Services;
 using PnP.Framework.Utilities;
 using PnP.Framework.Utilities.Context;
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Net;
@@ -108,6 +109,9 @@ namespace PnP.Framework
         private readonly PnPContext pnpContext;
 
         public CookieContainer CookieContainer { get; set; }
+        // v====HEU: FOR DEBUGGING=====v
+        public static List<string> AccessTokenHistory { get; } = new();
+        // ^===========================^
 
         private IMsalHttpClientFactory HttpClientFactory
         {
@@ -309,6 +313,7 @@ namespace PnP.Framework
         {
             this.accessToken = accessToken;
             authenticationType = ClientContextType.AccessToken;
+            LookAtAuthResult_Heu(EncryptionUtility.ToInsecureString(this.accessToken));
         }
         /// <summary>
         /// Creates a new instance of the Authentication Manager to acquire authenticated ClientContexts. It uses the PnP Management Shell multi-tenant Azure AD application ID to authenticate. By default tokens will be cached in memory.
@@ -734,6 +739,24 @@ namespace PnP.Framework
             return await GetAccessTokenAsync(scopes, CancellationToken.None, prompt).ConfigureAwait(false);
         }
 
+        private void LookAtAuthResult_Heu(string accessToken)
+        {
+            if (!string.IsNullOrWhiteSpace(accessToken))
+            {
+                lock(AccessTokenHistory)
+                {
+                    if (!AccessTokenHistory.Contains(accessToken))
+                    {
+                        AccessTokenHistory.Add(accessToken);
+                    }
+                }
+            }
+        }
+
+        private void LookAtAuthResult_Heu(AuthenticationResult authResult)
+        {
+            LookAtAuthResult_Heu(authResult?.AccessToken);
+        }
 
         /// <summary>
         /// Returns an access token for the given scopes.
@@ -866,6 +889,7 @@ namespace PnP.Framework
             }
             if (authResult?.AccessToken != null)
             {
+                LookAtAuthResult_Heu(authResult);
                 return authResult.AccessToken;
             }
             return null;
@@ -935,6 +959,7 @@ namespace PnP.Framework
                         }
                         if (authResult.AccessToken != null)
                         {
+                            LookAtAuthResult_Heu(authResult);
                             return BuildClientContext(publicClientApplication, siteUrl, scopes, authenticationType);
                         }
                         break;
@@ -972,6 +997,7 @@ namespace PnP.Framework
                         }
                         if (authResult.AccessToken != null)
                         {
+                            LookAtAuthResult_Heu(authResult);
                             return BuildClientContext(publicClientApplication, siteUrl, scopes, authenticationType);
                         }
                         break;
@@ -992,6 +1018,7 @@ namespace PnP.Framework
                         }
                         if (authResult.AccessToken != null)
                         {
+                            LookAtAuthResult_Heu(authResult);
                             return BuildClientContext(confidentialClientApplication, siteUrl, scopes, authenticationType);
                         }
                         break;
@@ -1012,6 +1039,7 @@ namespace PnP.Framework
                         }
                         if (authResult.AccessToken != null)
                         {
+                            LookAtAuthResult_Heu(authResult);
                             return BuildClientContext(confidentialClientApplication, siteUrl, scopes, authenticationType);
                         }
                         break;
@@ -1030,6 +1058,7 @@ namespace PnP.Framework
                         }
                         if (authResult.AccessToken != null)
                         {
+                            LookAtAuthResult_Heu(authResult);
                             return BuildClientContext(publicClientApplication, siteUrl, scopes, authenticationType);
                         }
                         break;
