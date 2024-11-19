@@ -513,6 +513,19 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                             {
                             page.SetDefaultPageHeader();
                             }
+
+                            // 2024-11-19 HEU ADDITION - also trigger setting the author fields for the page list item, which will be done by PnP.Core
+                            // v===================================
+                            if (clientSidePage.Header.AuthorByLineId > 0)
+                            {
+                                // note: those are set in the web part that is added via PnP template, don't set here
+                                // page.PageHeader.Authors = clientSidePage.Header.Authors ?? "";
+                                // page.PageHeader.AuthorByLine = clientSidePage.Header.AuthorByLine ?? "";
+
+                                // BUT: this needs to be set so the page list item property is set by PnP Core (further down the road)
+                                page.PageHeader.AuthorByLineId = clientSidePage.Header.AuthorByLineId;
+                            }
+                            // ^===================================
                             break;
                         }
                     case ClientSidePageHeaderType.Custom:
