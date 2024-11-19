@@ -164,7 +164,7 @@ namespace PnP.Framework.Provisioning.Model
         /// </summary>
         None,
         /// <summary>
-        /// Default client side page header
+        /// Default client side page header (note: this covers the page title web part via code in ObjectClientSidePage->CreatePage)
         /// </summary>
         Default,
         /// <summary>

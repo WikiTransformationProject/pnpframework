@@ -503,15 +503,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         }
                     case ClientSidePageHeaderType.Default:
                         {
-                            //Message ID: MC791596 / Roadmap ID: 386904
-                            if (clientSidePage.Sections.Any() && clientSidePage.Sections.First().Type == CanvasSectionType.OneColumnFullWidth && 
-                                clientSidePage.Sections.First().Controls.Any(c => c.Type == WebPartType.PageTitle))
+                            //Message ID: MC791596 / Roadmap ID: 386904 =>based on #1058 the PageTitle WebPart is not always in first section
+                            if (clientSidePage.Sections.Any(s => s.Type == CanvasSectionType.OneColumnFullWidth && s.Controls.Any(c => c.Type == WebPartType.PageTitle)))
                             {
                                 page.SetPageTitleWebPartPageHeader();
                             }
                             else
                             {
-                            page.SetDefaultPageHeader();
+                                page.SetDefaultPageHeader();
                             }
 
                             // 2024-11-19 HEU ADDITION - also trigger setting the author fields for the page list item, which will be done by PnP.Core
@@ -1550,8 +1549,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
 
             return (url, parserActions, true);
-        }
-
-    }
+        }        
+    }    
 #nullable restore
 }
