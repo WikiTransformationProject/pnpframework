@@ -82,7 +82,7 @@ namespace PnP.Framework.Modernization.Telemetry.Observers
 
                 var pageName = $"{targetFolder.Name}/{logFileName}";
 
-                var reportPage = this._clientContext.Web.AddClientSidePage(pageName);
+                var reportPage = this._clientContext.Web.AddClientSidePage(PnPCore.EditorType.CK4, pageName);
                 reportPage.PageTitle = base._includeVerbose ? LogStrings.Report_ModernisationReport : LogStrings.Report_ModernisationSummaryReport;
 
                 var componentsToAdd = CacheManager.Instance.GetClientSideComponents(_clientContext, reportPage);

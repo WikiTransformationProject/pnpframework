@@ -407,6 +407,8 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         // Get the existing page
                         page = pnpContext.Web.LoadClientSidePage(pageName);
                     }
+                    // 2025-01-15: need to set desired editor type because the loaded page information does not yet contain this information?
+                    page.EditorType = clientSidePage.EditorType;
 
                     // normally the page can be gotten when the file exists; but there seem to be rare cases of broken pages were basic field values are missing, see https://github.com/pnp/pnpframework/issues/724
                     // these broken pages are detected here with the hope to fix them by re-populating those fields (ultimately via Page.SaveAsync)
@@ -475,7 +477,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             {
                 // Create new client side page
                 // OR for broken pages: re-populate all missing basic fields as well
-                page = web.AddClientSidePage(pageName);
+                page = web.AddClientSidePage(clientSidePage.EditorType, pageName);
             }
 
             // Set page title
@@ -1508,7 +1510,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             if (!exists)
             {
                 // Pre-create the page    
-                PnPCore.IPage page = await web.AddClientSidePageAsync(pageName).ConfigureAwait(false);
+                PnPCore.IPage page = await web.AddClientSidePageAsync(clientSidePage.EditorType, pageName).ConfigureAwait(false);
 
                 // Set page layout now, because once it's set, it can't be changed.
                 if (!string.IsNullOrEmpty(clientSidePage.Layout))

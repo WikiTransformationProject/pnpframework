@@ -352,7 +352,7 @@ namespace PnP.Framework.Modernization.Publishing
                 }
 
                 // Create the client side page
-                targetPage = context.Web.AddClientSidePage($"{publishingPageTransformationInformation.Folder}{publishingPageTransformationInformation.TargetPageName}");
+                targetPage = context.Web.AddClientSidePage(PnPCore.EditorType.CK4, $"{publishingPageTransformationInformation.Folder}{publishingPageTransformationInformation.TargetPageName}");
                 LogInfo($"{LogStrings.ModernPageCreated} ", LogStrings.Heading_PageCreation);
                 #endregion
 

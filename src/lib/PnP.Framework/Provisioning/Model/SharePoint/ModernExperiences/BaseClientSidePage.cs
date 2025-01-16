@@ -1,4 +1,5 @@
-﻿using PnP.Framework.Extensions;
+﻿using PnP.Core.Model.SharePoint;
+using PnP.Framework.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -126,6 +127,9 @@ namespace PnP.Framework.Provisioning.Model
         /// Defines the URL of the thumbnail for the client side page
         /// </summary>
         public String ThumbnailUrl { get; set; }
+
+        // 2025-01-14: status quo is ck4, will upgrade to CK5 gradually and then the default might change...
+        public EditorType EditorType { get; set; } = EditorType.CK4;
 
         #endregion
 

@@ -837,14 +837,15 @@ namespace Microsoft.SharePoint.Client
         /// Adds a client side "modern" page to a "classic" or "modern" site
         /// </summary>
         /// <param name="web">Web to add the page to</param>
+        /// <param name="editorType">CKEditor type</param>
         /// <param name="pageName">Name (e.g. demo.aspx) of the page to be added</param>
         /// <param name="alreadyPersist">Already persist the created, empty, page before returning the instantiated <see cref="ClientSidePage"/> instance</param>
         /// <returns>A <see cref="ClientSidePage"/> instance</returns>
-        public async static Task<IPage> AddClientSidePageAsync(this Web web, string pageName = "", bool alreadyPersist = false)
+        public async static Task<IPage> AddClientSidePageAsync(this Web web, EditorType editorType, string pageName = "", bool alreadyPersist = false)
         {
             using (var pnpContext = await PnPCoreSdk.Instance.GetPnPContextAsync(web.Context as ClientContext).ConfigureAwait(false))
             {
-                var page = await pnpContext.Web.NewPageAsync().ConfigureAwait(false);
+                var page = await pnpContext.Web.NewPageAsync(editorType: editorType).ConfigureAwait(false);
                 if (alreadyPersist)
                 {
                     await page.SaveAsync(pageName).ConfigureAwait(false);
@@ -857,12 +858,13 @@ namespace Microsoft.SharePoint.Client
         /// Adds a client side "modern" page to a "classic" or "modern" site
         /// </summary>
         /// <param name="web">Web to add the page to</param>
+        /// <param name="editorType">CKEditor type</param>
         /// <param name="pageName">Name (e.g. demo.aspx) of the page to be added</param>
         /// <param name="alreadyPersist">Already persist the created, empty, page before returning the instantiated <see cref="ClientSidePage"/> instance</param>
         /// <returns>A <see cref="ClientSidePage"/> instance</returns>
-        public static IPage AddClientSidePage(this Web web, string pageName = "", bool alreadyPersist = false)
+        public static IPage AddClientSidePage(this Web web, EditorType editorType, string pageName = "", bool alreadyPersist = false)
         {
-            return web.AddClientSidePageAsync(pageName, alreadyPersist).GetAwaiter().GetResult();
+            return web.AddClientSidePageAsync(editorType, pageName, alreadyPersist).GetAwaiter().GetResult();
         }
 
         /// <summary>

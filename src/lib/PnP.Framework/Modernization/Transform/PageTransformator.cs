@@ -520,7 +520,7 @@ namespace PnP.Framework.Modernization.Transform
 
                 // Create the client side page
 
-                targetPage = context.Web.AddClientSidePage($"{pageTransformationInformation.Folder}{pageTransformationInformation.TargetPageName}");
+                targetPage = context.Web.AddClientSidePage(PnPCore.EditorType.CK4, $"{pageTransformationInformation.Folder}{pageTransformationInformation.TargetPageName}");
                 LogInfo($"{LogStrings.ModernPageCreated} ", LogStrings.Heading_PageCreation);
                 #endregion
 
