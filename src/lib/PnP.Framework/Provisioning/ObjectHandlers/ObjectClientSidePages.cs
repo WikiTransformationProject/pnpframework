@@ -642,6 +642,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                         var targetSection = page.Sections[sectionCount];
                         targetSection.Collapsible = section.Collapsible;
                         targetSection.IsExpanded = section.IsExpanded;
+                        targetSection.HeadingLevel = section.HeadingLevel;
                         targetSection.DisplayName = section.DisplayName;
                         targetSection.IconAlignment = (PnP.Core.Model.SharePoint.IconAlignment)Enum.Parse(
                             typeof(PnP.Core.Model.SharePoint.IconAlignment),

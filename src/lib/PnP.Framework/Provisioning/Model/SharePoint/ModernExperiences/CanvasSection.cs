@@ -71,6 +71,11 @@ namespace PnP.Framework.Provisioning.Model
         /// </summary>
         public bool ShowDividerLine { get; set; }
 
+        /// <summary>
+        /// Set the heading level on a scale from 2 to 4 (at least those are available in the UI)
+        /// </summary>
+        public int HeadingLevel { get; set; }
+
         #endregion
 
         #region Constructors
