@@ -1213,6 +1213,12 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     {
                         page.PromoteAsNewsArticle();
                     }
+
+                    // HEU 2025-05 allow making a page homepage
+                    if (clientSidePage.PromoteAsHomePage)
+                    {
+                        page.PromoteAsHomePage();
+                    }
                 }
 
                 // HEU: save one call

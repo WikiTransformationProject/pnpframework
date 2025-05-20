@@ -60,6 +60,12 @@ namespace PnP.Framework.Provisioning.Model
         /// </summary>
         public Boolean PromoteAsTemplate { get; set; }
 
+        // HEU 2025-05 introducing property to make a page homepage
+        /// <summary>
+        /// Defines whether to promote the page as a home page, optional attribute
+        /// </summary>
+        public Boolean PromoteAsHomePage { get; set; }
+
         /// <summary>
         /// Defines whether the page can be overwritten if it exists
         /// </summary>
