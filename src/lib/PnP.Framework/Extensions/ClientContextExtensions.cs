@@ -180,14 +180,14 @@ namespace Microsoft.SharePoint.Client
                         }
 #endif
 
-                        await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
+                        await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
                         await clientContext.ExecuteQueryAsync();
                     }
                     else
                     {
                         if (wrapper != null && wrapper.Value != null)
                         {
-                            await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
+                            await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
                             await clientContext.RetryQueryAsync(wrapper.Value);
                         }
                     }
@@ -236,8 +236,8 @@ namespace Microsoft.SharePoint.Client
                             Log.Info(Constants.LOGGING_SOURCE, $"[THROTTLED] CSOM request frequency exceeded usage limits. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
                         }
 
-                        AwaitableGate.Instance.SetWaitTime(retryAfterInterval);
-                        await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
+                        AwaitableGate.MicrosoftInstance.SetWaitTime(retryAfterInterval);
+                        await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
 //                        await Task.Delay(retryAfterInterval);
 
                         //Add to retry count and increase delay.
@@ -289,8 +289,8 @@ namespace Microsoft.SharePoint.Client
 
                             Log.Warning(Constants.LOGGING_SOURCE, $"CSOM request socket exception. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
 
-                            AwaitableGate.Instance.SetWaitTime(retryAfterInterval);
-                            await AwaitableGate.Instance.WaitAsync().ConfigureAwait(false);
+                            AwaitableGate.MicrosoftInstance.SetWaitTime(retryAfterInterval);
+                            await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
                             //await Task.Delay(retryAfterInterval);
 
                             //Add to retry count and increase delay.
