@@ -271,12 +271,18 @@ namespace Microsoft.SharePoint.Client
                                 errorSb.AppendLine($"ErrorCode: {socketEx.ErrorCode}"); //10054
                                 errorSb.AppendLine($"SocketErrorCode: {socketEx.SocketErrorCode}"); //ConnectionReset
                                 errorSb.AppendLine($"Message: {socketEx.Message}"); //An existing connection was forcibly closed by the remote host
-                                Log.Error(Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetryException, errorSb.ToString());
 
                                 // Hostname unknown error code 11001 should not be retried
                                 if(socketEx.ErrorCode == 11001)
                                 {
+                                    Log.Error(Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetryException, errorSb.ToString());
                                     throw;
+                                }
+
+                                // HEU: only log hard error if this is the last retry; otherwise this spams the log with BIG (stack trace!) hard errors which might be self-healing; also, there is a warning below as well
+                                if (retryAttempts + 1 >= retryCount)
+                                {
+                                    Log.Error(Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetryException, errorSb.ToString());
                                 }
 
                                 //retry
