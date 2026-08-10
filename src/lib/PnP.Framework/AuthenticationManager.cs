@@ -107,6 +107,9 @@ namespace PnP.Framework
         private readonly SecureString accessToken;
         private readonly IAuthenticationProvider authenticationProvider;
         private readonly PnPContext pnpContext;
+        // v====HEU: FOR DEBUGGING=====v
+        private readonly Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback;
+        // ^===========================^
 
         public CookieContainer CookieContainer { get; set; }
         // v====HEU: FOR DEBUGGING=====v
@@ -167,9 +170,9 @@ namespace PnP.Framework
         /// <param name="failureMessageHtml">llows you to override the failure message. Notice that a failed header message will be added and the error message will be appended.</param>
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called to register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
-        public static AuthenticationManager CreateWithInteractiveLogin(string clientId, Action<string, int> openBrowserCallback, string tenantId = null, string successMessageHtml = null, string failureMessageHtml = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null)
+        public static AuthenticationManager CreateWithInteractiveLogin(string clientId, Action<string, int> openBrowserCallback, string tenantId = null, string successMessageHtml = null, string failureMessageHtml = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null)
         {
-            return new AuthenticationManager(clientId, Utilities.OAuth.DefaultBrowserUi.FindFreeLocalhostRedirectUri(), tenantId, azureEnvironment, tokenCacheCallback, new Utilities.OAuth.DefaultBrowserUi(openBrowserCallback, successMessageHtml, failureMessageHtml));
+            return new AuthenticationManager(clientId, Utilities.OAuth.DefaultBrowserUi.FindFreeLocalhostRedirectUri(), tenantId, azureEnvironment, tokenCacheCallback, new Utilities.OAuth.DefaultBrowserUi(openBrowserCallback, successMessageHtml, failureMessageHtml), tokenAcquisitionDiagnosticsCallback);
         }
 
         /// <summary>
@@ -181,9 +184,9 @@ namespace PnP.Framework
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
         /// <param name="customWebUi">Optional ICustomWebUi object to fully customize the feedback behavior</param>
-        public static AuthenticationManager CreateWithInteractiveLogin(string clientId, string redirectUrl = null, string tenantId = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, ICustomWebUi customWebUi = null)
+        public static AuthenticationManager CreateWithInteractiveLogin(string clientId, string redirectUrl = null, string tenantId = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, ICustomWebUi customWebUi = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null)
         {
-            return new AuthenticationManager(clientId, redirectUrl ?? Utilities.OAuth.DefaultBrowserUi.FindFreeLocalhostRedirectUri(), tenantId, azureEnvironment, tokenCacheCallback, customWebUi);
+            return new AuthenticationManager(clientId, redirectUrl ?? Utilities.OAuth.DefaultBrowserUi.FindFreeLocalhostRedirectUri(), tenantId, azureEnvironment, tokenCacheCallback, customWebUi, tokenAcquisitionDiagnosticsCallback);
         }
 
         /// <summary>
@@ -366,7 +369,7 @@ namespace PnP.Framework
         /// <param name="failureMessageHtml">llows you to override the failure message. Notice that a failed header message will be added and the error message will be appended.</param>
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called to register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
-        public AuthenticationManager(string clientId, Action<string, int> openBrowserCallback, string tenantId = null, string successMessageHtml = null, string failureMessageHtml = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null) : this(clientId, Utilities.OAuth.DefaultBrowserUi.FindFreeLocalhostRedirectUri(), tenantId, azureEnvironment, tokenCacheCallback, new Utilities.OAuth.DefaultBrowserUi(openBrowserCallback, successMessageHtml, failureMessageHtml))
+        public AuthenticationManager(string clientId, Action<string, int> openBrowserCallback, string tenantId = null, string successMessageHtml = null, string failureMessageHtml = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null) : this(clientId, Utilities.OAuth.DefaultBrowserUi.FindFreeLocalhostRedirectUri(), tenantId, azureEnvironment, tokenCacheCallback, new Utilities.OAuth.DefaultBrowserUi(openBrowserCallback, successMessageHtml, failureMessageHtml), tokenAcquisitionDiagnosticsCallback)
         {
         }
 
@@ -379,7 +382,7 @@ namespace PnP.Framework
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
         /// <param name="customWebUi">Optional ICustomWebUi object to fully customize the feedback behavior</param>
-        public AuthenticationManager(string clientId, string redirectUrl = null, string tenantId = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, ICustomWebUi customWebUi = null) : this()
+        public AuthenticationManager(string clientId, string redirectUrl = null, string tenantId = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, ICustomWebUi customWebUi = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null) : this()
         {
             this.azureEnvironment = azureEnvironment;
 
@@ -398,6 +401,8 @@ namespace PnP.Framework
             publicClientApplication = builder.Build();
 
             this.customWebUi = customWebUi;
+            // HEU: written by LLM, 2026-08-10
+            this.tokenAcquisitionDiagnosticsCallback = tokenAcquisitionDiagnosticsCallback;
 
             // register tokencache if callback provided
             tokenCacheCallback?.Invoke(publicClientApplication.UserTokenCache);
@@ -758,6 +763,37 @@ namespace PnP.Framework
             LookAtAuthResult_Heu(authResult?.AccessToken);
         }
 
+        // HEU: written by LLM, 2026-08-10
+        private void NotifyTokenAcquisitionDiagnostics(
+            TokenAcquisitionFlow flow,
+            bool succeeded,
+            int cachedAccountCount,
+            IAccount selectedAccount,
+            AuthenticationResult authenticationResult,
+            Exception exception,
+            bool willFallBackToInteractive = false)
+        {
+            try
+            {
+                var accountUsername = authenticationResult?.Account?.Username ?? selectedAccount?.Username;
+                var tokenSource = authenticationResult?.AuthenticationResultMetadata?.TokenSource;
+                var failureType = exception?.GetType().Name;
+                var errorCode = exception is MsalException msalException ? msalException.ErrorCode : null;
+                tokenAcquisitionDiagnosticsCallback?.Invoke(new TokenAcquisitionDiagnostics(
+                    flow,
+                    succeeded,
+                    cachedAccountCount,
+                    accountUsername,
+                    tokenSource,
+                    failureType,
+                    errorCode,
+                    willFallBackToInteractive));
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         /// <summary>
         /// Returns an access token for the given scopes.
         /// </summary>
@@ -789,14 +825,20 @@ namespace PnP.Framework
                     }
                 case ClientContextType.AzureADInteractive:
                     {
-                        var accounts = await publicClientApplication.GetAccountsAsync().ConfigureAwait(false);
+                        var accounts = (await publicClientApplication.GetAccountsAsync().ConfigureAwait(false)).ToList();
+                        IAccount selectedAccount = null;
 
                         try
                         {
-                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                            selectedAccount = accounts.First();
+                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, selectedAccount).ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                            // HEU: written by LLM, 2026-08-10
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, true, accounts.Count, selectedAccount, authResult, null);
                         }
-                        catch
+                        catch (Exception silentException)
                         {
+                            // HEU: written by LLM, 2026-08-10
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, willFallBackToInteractive: true);
                             var builder = publicClientApplication.AcquireTokenInteractive(scopes);
                             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                             {
@@ -819,7 +861,18 @@ namespace PnP.Framework
                                     builder.WithPrompt(prompt);
                                 }
                             }
-                            authResult = await builder.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                            try
+                            {
+                                authResult = await builder.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                                // HEU: written by LLM, 2026-08-10
+                                NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Interactive, true, accounts.Count, authResult.Account, authResult, null);
+                            }
+                            catch (Exception interactiveException)
+                            {
+                                // HEU: written by LLM, 2026-08-10
+                                NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Interactive, false, accounts.Count, selectedAccount, null, interactiveException);
+                                throw;
+                            }
                         }
                         break;
                     }
@@ -966,14 +1019,20 @@ namespace PnP.Framework
                     }
                 case ClientContextType.AzureADInteractive:
                     {
-                        var accounts = await publicClientApplication.GetAccountsAsync().ConfigureAwait(false);
+                        var accounts = (await publicClientApplication.GetAccountsAsync().ConfigureAwait(false)).ToList();
+                        IAccount selectedAccount = null;
 
                         try
                         {
-                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                            selectedAccount = accounts.First();
+                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, selectedAccount).ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                            // HEU: written by LLM, 2026-08-10
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, true, accounts.Count, selectedAccount, authResult, null);
                         }
-                        catch
+                        catch (Exception silentException)
                         {
+                            // HEU: written by LLM, 2026-08-10
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, willFallBackToInteractive: true);
                             var builder = publicClientApplication.AcquireTokenInteractive(scopes);
                             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                             {
@@ -993,7 +1052,18 @@ namespace PnP.Framework
                                     builder = builder.WithCustomWebUi(customWebUi);
                                 }
                             }
-                            authResult = await builder.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                            try
+                            {
+                                authResult = await builder.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                                // HEU: written by LLM, 2026-08-10
+                                NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Interactive, true, accounts.Count, authResult.Account, authResult, null);
+                            }
+                            catch (Exception interactiveException)
+                            {
+                                // HEU: written by LLM, 2026-08-10
+                                NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Interactive, false, accounts.Count, selectedAccount, null, interactiveException);
+                                throw;
+                            }
                         }
                         if (authResult.AccessToken != null)
                         {
@@ -1182,10 +1252,28 @@ namespace PnP.Framework
             {
                 AuthenticationResult ar = null;
 
-                var accounts = application.GetAccountsAsync().GetAwaiter().GetResult();
+                var accounts = application.GetAccountsAsync().GetAwaiter().GetResult().ToList();
                 if (accounts.Any())
                 {
-                    ar = application.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync().GetAwaiter().GetResult();
+                    var selectedAccount = accounts.First();
+                    try
+                    {
+                        ar = application.AcquireTokenSilent(scopes, selectedAccount).ExecuteAsync().GetAwaiter().GetResult();
+                        // HEU: written by LLM, 2026-08-10
+                        if (ClientContextType.AzureADInteractive == contextType)
+                        {
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, true, accounts.Count, selectedAccount, ar, null);
+                        }
+                    }
+                    catch (Exception silentException)
+                    {
+                        // HEU: written by LLM, 2026-08-10
+                        if (ClientContextType.AzureADInteractive == contextType)
+                        {
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException);
+                        }
+                        throw;
+                    }
                 }
                 else
                 {
@@ -1210,7 +1298,18 @@ namespace PnP.Framework
                                 {
                                     builder = builder.WithCustomWebUi(customWebUi);
                                 }
-                                ar = builder.ExecuteAsync().GetAwaiter().GetResult();
+                                try
+                                {
+                                    ar = builder.ExecuteAsync().GetAwaiter().GetResult();
+                                    // HEU: written by LLM, 2026-08-10
+                                    NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Interactive, true, accounts.Count, ar.Account, ar, null);
+                                }
+                                catch (Exception interactiveException)
+                                {
+                                    // HEU: written by LLM, 2026-08-10
+                                    NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Interactive, false, accounts.Count, null, null, interactiveException);
+                                    throw;
+                                }
                                 break;
                             }
                         case ClientContextType.AzureOnBehalfOf:
