@@ -118,7 +118,9 @@ namespace Microsoft.SharePoint.Client
 
             await new SynchronizationContextRemover();
 
-            var id = AwaitableGate.StartRequest(clientContext.Url, TimeSpan.FromMilliseconds(clientContext.RequestTimeout));
+            // v============= HEU/LLM: Say that this is a CSOM query, not a request to the site root. ==========
+            var id = AwaitableGate.StartRequest($"{clientContext.Url} (CSOM query)", TimeSpan.FromMilliseconds(clientContext.RequestTimeout));
+            // ^===================================================================
             try
             {
                 // Set the TLS preference. Needed on some server os's to work when Office 365 removes support for TLS 1.0
@@ -203,11 +205,17 @@ namespace Microsoft.SharePoint.Client
                     catch (WebException wex)
                     {
                         var response = wex.Response as HttpWebResponse;
-                        // Check if request was throttled - http status code 429
-                        // Check is request failed due to server unavailable - http status code 503
-                        if ((response != null &&
+                        // v============= HEU/LLM: Include gateway timeouts in SharePoint pushback. ==========
+                        // Check if the request was throttled - HTTP status code 429
+                        // Check if the service or gateway was not available - HTTP status code 503 or 504
+                        if ((null != response &&
+                        // ^==================================================================================
                             (response.StatusCode == (HttpStatusCode)429
                             || response.StatusCode == (HttpStatusCode)503
+                            // v============= HEU/LLM: Retry a gateway timeout. ==========
+                            // written by LLM, 2026-09-04
+                            || response.StatusCode == (HttpStatusCode)504
+                            // ^===========================================================
                             // || response.StatusCode == (HttpStatusCode)500
                             ))
                             || wex.Status == WebExceptionStatus.Timeout)
@@ -243,7 +251,15 @@ namespace Microsoft.SharePoint.Client
                                 Log.Info(Constants.LOGGING_SOURCE, $"[THROTTLED] CSOM request frequency exceeded usage limits. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
                             }
 
-                            AwaitableGate.MicrosoftInstance.SetWaitTime(retryAfterInterval);
+                            // v============= HEU/LLM: Record structured CSOM pushback facts. ==========
+                            // written by LLM, 2026-09-04
+                            AwaitableGate.MicrosoftInstance.SetWaitTime(
+                                retryAfterInterval,
+                                nameof(ClientContextExtensions),
+                                clientContext.Url,
+                                response?.StatusCode.ToString() ?? wex.Status.ToString(),
+                                retryAttempts + 1);
+                            // ^============================================================================
                             if ((AwaitableGate.MicrosoftInstance.WaitSecsLeft * 1000) > retryAfterInterval)
                             {
                                 Log.Warning(Constants.LOGGING_SOURCE, $"[THROTTLED] Sleeping for even longer {AwaitableGate.MicrosoftInstance.WaitSecsLeft} seconds (AwaitableGate)");
@@ -306,7 +322,15 @@ namespace Microsoft.SharePoint.Client
 
                                 Log.Warning(Constants.LOGGING_SOURCE, $"CSOM request socket exception. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
 
-                                AwaitableGate.MicrosoftInstance.SetWaitTime(retryAfterInterval);
+                                // v============= HEU/LLM: Record structured socket pushback facts. ==========
+                                // written by LLM, 2026-09-04
+                                AwaitableGate.MicrosoftInstance.SetWaitTime(
+                                    retryAfterInterval,
+                                    nameof(ClientContextExtensions),
+                                    clientContext.Url,
+                                    response?.StatusCode.ToString() ?? socketEx.SocketErrorCode.ToString(),
+                                    retryAttempts + 1);
+                                // ^==============================================================================
                                 await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
                                 //await Task.Delay(retryAfterInterval);
 
