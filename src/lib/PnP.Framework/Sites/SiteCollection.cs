@@ -144,6 +144,12 @@ namespace PnP.Framework.Sites
                 payload.Add("PreferredDataLocation", siteCollectionCreationInformation.PreferredDataLocation.Value.ToString());
             }
 
+            // v============= HEU/LLM: cherry-pick of upstream commit 0976d03b: set the time zone of a new site ==========
+            if (siteCollectionCreationInformation.TimeZoneId.HasValue)
+            {
+                payload.Add("TimeZoneId", siteCollectionCreationInformation.TimeZoneId.Value);
+            }
+            // ^===================================================================
             return await CreateAsync(clientContext, siteCollectionCreationInformation.Owner, payload, delayAfterCreation, noWait: noWait);
         }
 
@@ -192,6 +198,12 @@ namespace PnP.Framework.Sites
                 payload.Add("SensitivityLabel", sensitivityLabelId);
                 payload["Classification"] = siteCollectionCreationInformation.SensitivityLabel;
             }
+            // v============= HEU/LLM: cherry-pick of upstream commit 0976d03b: set the time zone of a new site ==========
+            if (siteCollectionCreationInformation.TimeZoneId.HasValue)
+            {
+                payload.Add("TimeZoneId", siteCollectionCreationInformation.TimeZoneId.Value);
+            }
+            // ^===================================================================
             return await CreateAsync(
                 clientContext,
                 siteCollectionCreationInformation.Owner,
