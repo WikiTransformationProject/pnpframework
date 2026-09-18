@@ -99,6 +99,57 @@ namespace Microsoft.SharePoint.Client
             Task.Run(() => ExecuteQueryImplementation(clientContext, retryCount, userAgent)).GetAwaiter().GetResult();
         }
 
+        // v============= HEU/LLM: Name the actions of a CSOM query. ==========
+        // written by LLM, 2026-09-18
+        // Reads the object names of the pending actions through reflection, as the error path
+        // did before in the retry loop. A failure gives an empty list; the log names no action.
+        private static List<string> GetPendingActionInfo(ClientRuntimeContext clientContext)
+        {
+            var info = new List<string>();
+            try
+            {
+                var actions = GetPrivateProperty<List<ClientAction>>(clientContext.PendingRequest, "Actions");
+                foreach (var action in actions)
+                {
+                    var objectName = GetPrivateProperty<string>(action.Path, "ObjectName");
+                    var pathIdentity = GetPrivateProperty<object>(action.Path, "Parent");
+                    var identityString = GetPrivateProperty<string>(pathIdentity, "Identity");
+                    info.Add($"{objectName} ({identityString})");
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+            return info;
+        }
+
+        // written by LLM, 2026-09-18
+        // A short name of the query for the slow-request log: the first object names, without
+        // the long identities. "CSOM query" alone says nothing about which query is slow.
+        private static string DescribePendingActions(ClientRuntimeContext clientContext)
+        {
+            const int shownActionCount = 4;
+            var objectNames = new List<string>();
+            foreach (var actionInfo in GetPendingActionInfo(clientContext))
+            {
+                var objectName = actionInfo.Split(' ')[0];
+                if (!objectNames.Contains(objectName))
+                {
+                    objectNames.Add(objectName);
+                }
+            }
+            if (objectNames.Count == 0)
+            {
+                return "CSOM query";
+            }
+
+            var shown = string.Join(", ", objectNames.Take(shownActionCount));
+            var hidden = objectNames.Count - shownActionCount;
+            return hidden > 0 ? $"CSOM query: {shown}, +{hidden}" : $"CSOM query: {shown}";
+        }
+        // ^===================================================================
+
         public static T GetPrivateProperty<T>(object obj, string propertyName)
         {
             var result = (T)obj?.GetType()
@@ -118,9 +169,9 @@ namespace Microsoft.SharePoint.Client
 
             await new SynchronizationContextRemover();
 
-            // v============= HEU/LLM: Say that this is a CSOM query, not a request to the site root. ==========
-            var id = AwaitableGate.StartRequest($"{clientContext.Url} (CSOM query)", TimeSpan.FromMilliseconds(clientContext.RequestTimeout));
-            // ^===================================================================
+            // v============= HEU/LLM: Name the CSOM query, not only the site root. ==========
+            var id = AwaitableGate.StartRequest($"{clientContext.Url} ({DescribePendingActions(clientContext)})", TimeSpan.FromMilliseconds(clientContext.RequestTimeout));
+            // ^===========================================================================
             try
             {
                 // Set the TLS preference. Needed on some server os's to work when Office 365 removes support for TLS 1.0
@@ -145,7 +196,10 @@ namespace Microsoft.SharePoint.Client
                 // Do while retry attempt is less than retry count
                 while (retryAttempts < retryCount)
                 {
-                    var additionalDebugInfo = new List<string>();
+                    // v============= HEU/LLM: Read the action names through one helper; mark the phase. ==========
+                    var additionalDebugInfo = GetPendingActionInfo(clientContext);
+                    AwaitableGate.MarkPhase(id, RequestPhase.WaitingAtGate);
+                    // ^=======================================================================================
                     try
                     {
                         clientContext.ClientTag = SetClientTag(clientTag);
@@ -157,21 +211,6 @@ namespace Microsoft.SharePoint.Client
                         EventHandler<WebRequestEventArgs> appDecorationHandler = AttachRequestUserAgent(userAgent);
 
                         clientContext.ExecutingWebRequest += appDecorationHandler;
-
-                        try
-                        {
-                            var actions = GetPrivateProperty<List<ClientAction>>(clientContext.PendingRequest, "Actions");
-                            foreach (var action in actions)
-                            {
-                                var objectName = GetPrivateProperty<string>(action.Path, "ObjectName");
-                                var pathIdentity = GetPrivateProperty<object>(action.Path, "Parent");
-                                var identityString = GetPrivateProperty<string>(pathIdentity, "Identity");
-                                additionalDebugInfo.Add($"{objectName} ({identityString})");
-                            }
-                        } catch
-                        {
-                            // ignore
-                        }
 
                         // DO NOT CHANGE THIS TO EXECUTEQUERYRETRY
                         if (!retry)
@@ -186,6 +225,9 @@ namespace Microsoft.SharePoint.Client
     #endif
 
                             await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
+                            // v============= HEU/LLM: Mark the phase of the request. ==========
+                            AwaitableGate.MarkPhase(id, RequestPhase.OnTheWire);
+                            // ^================================================================
                             await clientContext.ExecuteQueryAsync();
                         }
                         else
@@ -193,6 +235,9 @@ namespace Microsoft.SharePoint.Client
                             if (wrapper != null && wrapper.Value != null)
                             {
                                 await AwaitableGate.MicrosoftInstance.WaitAsync().ConfigureAwait(false);
+                                // v============= HEU/LLM: Mark the phase of the request. ==========
+                                AwaitableGate.MarkPhase(id, RequestPhase.OnTheWire);
+                                // ^================================================================
                                 await clientContext.RetryQueryAsync(wrapper.Value);
                             }
                         }
@@ -200,6 +245,9 @@ namespace Microsoft.SharePoint.Client
                         // Remove the app decoration event handler after the executequery
                         clientContext.ExecutingWebRequest -= appDecorationHandler;
 
+                        // v============= HEU/LLM: Name the end of the request. ==========
+                        AwaitableGate.MarkOutcome(id, "ok");
+                        // ^==============================================================
                         return;
                     }
                     catch (WebException wex)
@@ -252,7 +300,7 @@ namespace Microsoft.SharePoint.Client
                             }
 
                             // v============= HEU/LLM: Record structured CSOM pushback facts. ==========
-                            // written by LLM, 2026-09-04
+                            AwaitableGate.MarkPhase(id, RequestPhase.WaitingForRetry, response?.StatusCode.ToString() ?? wex.Status.ToString());
                             AwaitableGate.MicrosoftInstance.SetWaitTime(
                                 retryAfterInterval,
                                 nameof(ClientContextExtensions),
@@ -323,7 +371,7 @@ namespace Microsoft.SharePoint.Client
                                 Log.Warning(Constants.LOGGING_SOURCE, $"CSOM request socket exception. Retry attempt {retryAttempts + 1}. Sleeping for {retryAfterInterval} milliseconds before retrying.");
 
                                 // v============= HEU/LLM: Record structured socket pushback facts. ==========
-                                // written by LLM, 2026-09-04
+                                AwaitableGate.MarkPhase(id, RequestPhase.WaitingForRetry, response?.StatusCode.ToString() ?? socketEx.SocketErrorCode.ToString());
                                 AwaitableGate.MicrosoftInstance.SetWaitTime(
                                     retryAfterInterval,
                                     nameof(ClientContextExtensions),
