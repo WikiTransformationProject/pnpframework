@@ -326,7 +326,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
         // page components shouldn't change for a site during the course of what WikiTraccs does
         private static readonly Dictionary<string, IEnumerable<PnPCore.IPageComponent>> pageComponentsCache = new();
         // cache our content type ID; don't need to look that up for every page again
-        private static readonly Dictionary<(string siteUrl, string contentTypeIdFromTemplate), string> contentTypeIdOnSitePagesListCache = new();
+        // v============= HEU/LLM: Pages of one site can save at the same time. ==========
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string siteUrl, string contentTypeIdFromTemplate), string> contentTypeIdOnSitePagesListCache = new();
+        // ^===================================================================
 
         private void CreatePage(Web web, ProvisioningTemplate template, TokenParser parser, PnPMonitoredScope scope, BaseClientSidePage clientSidePage, string pagesLibrary, Func<string, Microsoft.SharePoint.Client.File> getFileThatHasAlreadyBeenRetrievedForPage, ref int currentPageIndex, List<string> preCreatedPages)
         {
@@ -1136,13 +1138,13 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     if (currentCT == null)
                     {
                         fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCT.StringValue;
-                        contentTypeIdOnSitePagesListCache.Add((page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID), bestMatchCT.StringValue);
+                        contentTypeIdOnSitePagesListCache[(page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID)] = bestMatchCT.StringValue;
                         isDirty = true;
                     }
                     else if (currentCT != null && !currentCT.IsChildOf(bestMatchCT))
                     {
                         fileAfterSave.ListItemAllFields[ContentTypeIdField] = bestMatchCT.StringValue;
-                        contentTypeIdOnSitePagesListCache.Add((page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID), bestMatchCT.StringValue);
+                        contentTypeIdOnSitePagesListCache[(page.PnPContext.Uri.ToString(), clientSidePage.ContentTypeID)] = bestMatchCT.StringValue;
                         isDirty = true;
                     }
                 }
@@ -1436,13 +1438,16 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             Action<string, string>? writeSubProgress)
         {
             var serverRelativeWebUrl = $"/{new Uri(web.Context.Url).AbsolutePath.TrimStart('/')}";
+            // v============= HEU/LLM: Two tenants can have the same site path. The key has the host. ==========
+            var webUrlWithHost = $"{new Uri(web.Context.Url).GetLeftPart(UriPartial.Authority)}{serverRelativeWebUrl}";
+            // ^===================================================================
             var pageName = ObjectClientSidePages.DeterminePageName(null, clientSidePage);
             lock (_lock)
             {
-                if (!preCreatedFileUrls.TryGetValue((serverRelativeWebUrl, pageName), out var task))
+                if (!preCreatedFileUrls.TryGetValue((webUrlWithHost, pageName), out var task))
                 {
                     task = PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress);
-                    preCreatedFileUrls[(serverRelativeWebUrl, pageName)] = task;
+                    preCreatedFileUrls[(webUrlWithHost, pageName)] = task;
                 }
                 else
                 {
@@ -1515,11 +1520,18 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 {
                     exists = false;
                 }
+                // v============= HEU/LLM: Give each other server error to the caller; it does not show that the page exists. ==========
+                // covered by ServerErrorOfTheFileReadGoesToTheCallerAsync
+                else
+                {
+                    throw;
+                }
+                // ^===================================================================
             }
 
             if (!exists)
             {
-                // Pre-create the page    
+                // Pre-create the page
                 PnPCore.IPage page = await web.AddClientSidePageAsync(clientSidePage.EditorType, pageName).ConfigureAwait(false);
 
                 // Set page layout now, because once it's set, it can't be changed.

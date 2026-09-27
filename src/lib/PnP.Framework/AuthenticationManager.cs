@@ -113,8 +113,17 @@ namespace PnP.Framework
 
         public CookieContainer CookieContainer { get; set; }
         // v====HEU: FOR DEBUGGING=====v
-        public static List<string> AccessTokenHistory { get; } = new();
+        private static List<string> AccessTokenHistory { get; } = new();
         // ^===========================^
+        // v============= HEU/LLM: A copy of the token history for readers on other threads. ==========
+        public static IReadOnlyList<string> GetAccessTokenHistorySnapshot()
+        {
+            lock (AccessTokenHistory)
+            {
+                return AccessTokenHistory.ToList();
+            }
+        }
+        // ^===================================================================
 
         private IMsalHttpClientFactory HttpClientFactory
         {

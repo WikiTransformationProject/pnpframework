@@ -1150,7 +1150,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             }
         }
 
-        private static readonly Dictionary<String, String> listsTitles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // v============= HEU/LLM: One list title cache for each site, with a lock for each site. ==========
+        // Parallel applies to different sites do not clear the cache of each other.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<string, string>> listsTitlesBySite = new(StringComparer.OrdinalIgnoreCase);
+        // ^===================================================================
 
         /// <summary>
         /// This method retrieves the title of a list in the main language of the site
@@ -1160,45 +1163,48 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
         /// <returns>The title of the list in the main language of the site</returns>
         private static string GetListTitleForMainLanguage(Web web, String name)
         {
-            if (listsTitles.ContainsKey(name))
+            // v============= HEU/LLM: One list title cache for each site, with a lock for each site. ==========
+            var listsTitles = listsTitlesBySite.GetOrAdd(web.Context.Url.TrimEnd('/'), _ => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            lock (listsTitles)
             {
-                // Return the title that we already have
-                return (listsTitles[name]);
-            }
-            else
-            {
-                // Get the default culture for the current web
-                var ci = new System.Globalization.CultureInfo((int)web.Language);
-
-                // Refresh the list of lists with a lock
-                lock (typeof(ListIdToken))
+                if (listsTitles.ContainsKey(name))
                 {
+                    // Return the title that we already have
+                    return (listsTitles[name]);
+                }
+                else
+                {
+                    // Get the default culture for the current web
+                    var ci = new System.Globalization.CultureInfo((int)web.Language);
+
+                    // Refresh the list of lists with a lock
                     // Reset the cache of lists titles
-                    TokenParser.listsTitles.Clear();
+                    listsTitles.Clear();
 
                     // Add the new lists title using the main language of the site
                     foreach (var list in web.Lists)
                     {
                         var titleResource = list.TitleResource.GetValueForUICulture(ci.Name);
                         web.Context.ExecuteQueryRetry();
-                        if (!TokenParser.listsTitles.ContainsKey(list.Title))
+                        if (!listsTitles.ContainsKey(list.Title))
                         {
-                            TokenParser.listsTitles.Add(list.Title, titleResource.Value);
+                            listsTitles.Add(list.Title, titleResource.Value);
                         }
                     }
-                }
 
-                // If now we have the list title ...
-                if (listsTitles.ContainsKey(name))
-                {
-                    // Return the title, if any
-                    return (listsTitles[name]);
-                }
-                else
-                {
-                    return (null);
+                    // If now we have the list title ...
+                    if (listsTitles.ContainsKey(name))
+                    {
+                        // Return the title, if any
+                        return (listsTitles[name]);
+                    }
+                    else
+                    {
+                        return (null);
+                    }
                 }
             }
+            // ^===================================================================
         }
 
         private static List<string> ParseTemplate(ProvisioningTemplate template)
