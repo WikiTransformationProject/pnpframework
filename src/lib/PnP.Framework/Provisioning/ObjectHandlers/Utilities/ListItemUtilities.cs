@@ -403,7 +403,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                                         if (!int.TryParse(arrayItem.Trim().ToString(), out int userId))
                                         {
                                             var user = web.EnsureUser(arrayItem.Trim());
-                                            clonedContext.Load(user);
+                                            // v============= HEU/LLM: Read only the user ID for field writes ==========
+                                            // written by LLM, 2026-10-02
+                                            clonedContext.Load(user, value => value.Id);
+                                            // ^===================================================================
                                             clonedContext.ExecuteQueryRetry();
                                             userValues.Add(new FieldUserValue() { LookupId = user.Id });
 
@@ -420,7 +423,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                                     if (!int.TryParse(value.Trim(), out int userId))
                                     {
                                         var user = web.EnsureUser(value.Trim());
-                                        clonedContext.Load(user);
+                                        // v============= HEU/LLM: Read only the user ID for field writes ==========
+                                        // written by LLM, 2026-10-02
+                                        clonedContext.Load(user, value => value.Id);
+                                        // ^===================================================================
                                         clonedContext.ExecuteQueryRetry();
                                         itemValues.Add(new FieldUpdateValue(key, new FieldUserValue() { LookupId = user.Id }));
                                     }

@@ -406,25 +406,29 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             if (stream == null) throw new ArgumentNullException(nameof(stream));
 
             File targetFile = null;
+            // v============= HEU/LLM: Keep the upload stream position ==========
+            // written by LLM, 2026-10-02
+            var streamStartPosition = stream.CanSeek ? stream.Position : 0;
+            // ^===================================================================
             try
             {
                 targetFile = folder.UploadFile(fileName, stream, overwrite);
             }
             catch (ServerException ex)
             {
-                if (ex.ServerErrorCode != -2130575306) //Error code: -2130575306 = The file is already checked out.
+                // v============= HEU/LLM: Refuse an empty upload after an error ==========
+                // written by LLM, 2026-10-02
+                // covered by FailedLargeAttachmentFinishAndRestartCompleteTheMigrationAsync
+                var decodedFileName = Uri.UnescapeDataString(fileName);
+                var nameIsUnchanged = string.Equals(fileName, decodedFileName, StringComparison.Ordinal);
+                var fileIsCheckedOut = ex.ServerErrorCode == -2130575306;
+                if (nameIsUnchanged || fileIsCheckedOut || !stream.CanSeek)
                 {
-                    //The file name might contain encoded characters that prevent upload. Decode it and try again.
-                    fileName = Uri.UnescapeDataString(fileName);
-                    try
-                    {
-                        targetFile = folder.UploadFile(fileName, stream, overwrite);
-                    }
-                    catch (Exception)
-                    {
-                        //unable to Upload file, just ignore
-                    }
+                    throw;
                 }
+                stream.Position = streamStartPosition;
+                targetFile = folder.UploadFile(decodedFileName, stream, overwrite);
+                // ^===================================================================
             }
             return targetFile;
         }

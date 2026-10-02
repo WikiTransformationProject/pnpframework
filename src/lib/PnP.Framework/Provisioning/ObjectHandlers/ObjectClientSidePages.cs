@@ -777,6 +777,13 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                                         case WebPartType.ContentEmbed:
                                             webPartName = page.DefaultWebPartToWebPartId(PnPCore.DefaultWebPart.ContentEmbed);
                                             break;
+                                        // v============= HEU/LLM: Find the CodeSnippet component ==========
+                                        // written by LLM, 2026-10-02
+                                        // covered by CodeMacroMigrationAndUpdateKeepTheCompleteWebPartDataAsync
+                                        case WebPartType.CodeSnippet:
+                                            webPartName = page.DefaultWebPartToWebPartId(PnPCore.DefaultWebPart.CodeSnippet);
+                                            break;
+                                        // ^===================================================================
                                         case WebPartType.ContentRollup:
                                             webPartName = page.DefaultWebPartToWebPartId(PnPCore.DefaultWebPart.ContentRollup);
                                             break;
