@@ -373,7 +373,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 try
                 {
                     file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-                    web.Context.Load(file);
+                    // v============= HEU/LLM: Read only page file identity ==========
+                    // written by LLM, 2026-10-02
+                    // covered by SharePointProvisioningResultsAsync
+                    web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
+                    // ^===================================================================
                     web.Context.ExecuteQueryRetry();
                 }
                 catch (ServerException ex)
