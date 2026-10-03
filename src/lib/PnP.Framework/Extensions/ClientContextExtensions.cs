@@ -503,6 +503,10 @@ namespace Microsoft.SharePoint.Client
             clonedClientContext.ClientTag = clientContext.ClientTag;
             clonedClientContext.DisableReturnValueCache = clientContext.DisableReturnValueCache;
             clonedClientContext.WebRequestExecutorFactory = clientContext.WebRequestExecutorFactory;
+            // v============= HEU/LLM: Keep the HTTP factory on a context clone ==========
+            // written by LLM, 2026-10-03
+            PnPHttpClient.Instance.CopyHttpClientFactory(clientContext, clonedClientContext);
+            // ^===================================================================
 
             // Check if we do have context settings
             var contextSettings = clientContext.GetContextSettings();
@@ -562,6 +566,10 @@ namespace Microsoft.SharePoint.Client
                         newClientContext.ClientTag = clientContext.ClientTag;
                         newClientContext.DisableReturnValueCache = clientContext.DisableReturnValueCache;
                         newClientContext.WebRequestExecutorFactory = clientContext.WebRequestExecutorFactory;
+                        // v============= HEU/LLM: Keep the HTTP factory on a context clone ==========
+                        // written by LLM, 2026-10-03
+                        PnPHttpClient.Instance.CopyHttpClientFactory(clientContext, newClientContext);
+                        // ^===================================================================
                         return newClientContext;
                     }
                     else

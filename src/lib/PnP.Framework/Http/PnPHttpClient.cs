@@ -7,6 +7,9 @@ using System.Configuration;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+// v============= HEU/LLM: Keep HTTP factories with their client context ==========
+using System.Runtime.CompilerServices;
+// ^===================================================================
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,6 +24,9 @@ namespace PnP.Framework.Http
         private const string PnPHttpClientName = "PnPHttpClient";
         private static readonly Lazy<PnPHttpClient> _lazyInstance = new Lazy<PnPHttpClient>(() => new PnPHttpClient(), true);
         private ServiceProvider serviceProvider;
+        // v============= HEU/LLM: Keep HTTP factories with their client context ==========
+        private readonly ConditionalWeakTable<ClientContext, Func<ClientContext, HttpClient>> contextHttpClientFactories = new();
+        // ^===================================================================
         private static readonly ConcurrentDictionary<string, HttpClientHandler> credentialsHttpClients = new ConcurrentDictionary<string, HttpClientHandler>();
 
         private PnPHttpClient()
@@ -38,6 +44,14 @@ namespace PnP.Framework.Http
 
         public HttpClient GetHttpClient(ClientContext context)
         {
+            // v============= HEU/LLM: Use the HTTP factory of this context ==========
+            // written by LLM, 2026-10-03
+            var contextFactory = FindHttpClientFactory(context);
+            if (null != contextFactory)
+            {
+                return contextFactory(context);
+            }
+            // ^===================================================================
             var factory = serviceProvider.GetRequiredService<IHttpClientFactory>();
 
             if (context.Credentials is NetworkCredential networkCredential)
@@ -78,6 +92,51 @@ namespace PnP.Framework.Http
                 return factory.CreateClient(PnPHttpClientName);
             }
         }
+
+        // v============= HEU/LLM: Set and copy context HTTP factories ==========
+        // written by LLM, 2026-10-03
+        public void SetHttpClientFactory(ClientContext context, Func<ClientContext, HttpClient> factory)
+        {
+            if (null == context)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+            if (null == factory)
+            {
+                throw new ArgumentNullException(nameof(factory));
+            }
+            lock (contextHttpClientFactories)
+            {
+                contextHttpClientFactories.Remove(context);
+                contextHttpClientFactories.Add(context, factory);
+            }
+        }
+
+        // written by LLM, 2026-10-03
+        internal void CopyHttpClientFactory(ClientRuntimeContext source, ClientContext target)
+        {
+            if (source is not ClientContext sourceContext)
+            {
+                return;
+            }
+            var factory = FindHttpClientFactory(sourceContext);
+            if (null != factory)
+            {
+                SetHttpClientFactory(target, factory);
+            }
+        }
+
+        #nullable enable
+        // written by LLM, 2026-10-03
+        private Func<ClientContext, HttpClient>? FindHttpClientFactory(ClientContext context)
+        {
+            lock (contextHttpClientFactories)
+            {
+                return contextHttpClientFactories.TryGetValue(context, out var factory) ? factory : null;
+            }
+        }
+        #nullable restore
+        // ^===================================================================
 
         public HttpClient GetHttpClient()
         {
