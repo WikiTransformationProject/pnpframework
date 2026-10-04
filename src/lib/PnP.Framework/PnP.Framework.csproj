@@ -2,6 +2,12 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net8.0</TargetFrameworks>
+		<!-- v============= HEU/LLM: Keep package locks and audit all dependencies; keep SourceLink off. ========== -->
+		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+		<NuGetAuditMode>all</NuGetAuditMode>
+		<EnableSourceLink>false</EnableSourceLink>
+		<EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+		<!-- ^=================================================================== -->
 		<LangVersion>10.0</LangVersion>
 		<RootNamespace>PnP.Framework</RootNamespace>
 		<AssemblyName>PnP.Framework</AssemblyName>
@@ -247,11 +253,17 @@
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.26.0" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+		<!-- v============= HEU/LLM: Keep the SourceLink package reference off. ========== -->
+		<!-- <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" /> -->
+		<!-- ^=================================================================== -->
 		<PackageReference Include="AngleSharp.Css" Version="1.0.2" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />		
 		<PackageReference Include="Microsoft.Graph" Version="5.39.0" />
 		<PackageReference Include="Microsoft.Graph.Core" Version="3.1.5" />
+		<!-- v============= HEU/LLM: Use the fixed Kiota packages (GHSA-7j59-v9qr-6fq9); the product already uses 1.22.1. ========== -->
+		<PackageReference Include="Microsoft.Kiota.Abstractions" Version="1.22.1" />
+		<PackageReference Include="Microsoft.Kiota.Http.HttpClientLibrary" Version="1.22.1" />
+		<!-- ^=================================================================== -->
 		<PackageReference Include="Microsoft.Identity.Client" Version="4.61.3" />
 		<PackageReference Include="Microsoft.SharePointOnline.CSOM" Version="16.1.25221.12000" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
