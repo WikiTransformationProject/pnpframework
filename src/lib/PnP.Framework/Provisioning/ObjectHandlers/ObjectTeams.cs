@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.StaticFiles;
+﻿// v============= HEU/LLM: Use the MIME map from the existing PnP Core reference. ==========
+using PnP.Core.Utilities;
+// ^===================================================================
 using Microsoft.Online.SharePoint.TenantAdministration;
 using Microsoft.SharePoint.Client;
 using Newtonsoft.Json;
@@ -1522,7 +1524,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 using (var photoStream = new MemoryStream(photoBytes))
                 {
                     string contentType;
-                    new FileExtensionContentTypeProvider().TryGetContentType(photoPath, out contentType);
+                    // v============= HEU/LLM: Use the MIME map from the existing PnP Core reference. ==========
+                    MimeTypeMap.TryGetMimeType(photoPath, out contentType);
+                    // ^===================================================================
                     if (contentType == null)
                     {
                         contentType = "application/octet-stream";
