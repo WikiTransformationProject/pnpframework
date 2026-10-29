@@ -164,9 +164,13 @@ namespace PnP.Framework
         /// <param name="deviceCodeCallback">The callback that will be called with device code information.</param>
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
-        public static AuthenticationManager CreateWithDeviceLogin(string clientId, string tenantId, Func<DeviceCodeResult, Task> deviceCodeCallback, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null)
+        // v============= HEU/LLM: Accept a callback for token acquisition diagnostics. ==========
+        public static AuthenticationManager CreateWithDeviceLogin(string clientId, string tenantId, Func<DeviceCodeResult, Task> deviceCodeCallback, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null)
+        // ^===================================================================
         {
-            return new AuthenticationManager(clientId, tenantId, deviceCodeCallback, azureEnvironment, tokenCacheCallback);
+            // v============= HEU/LLM: Pass the diagnostics callback on. ==========
+            return new AuthenticationManager(clientId, tenantId, deviceCodeCallback, azureEnvironment, tokenCacheCallback, tokenAcquisitionDiagnosticsCallback);
+            // ^===================================================================
         }
 
         /// <summary>
@@ -219,9 +223,13 @@ namespace PnP.Framework
         /// <param name="redirectUrl">Optional redirect URL to use for authentication as set up in the Azure AD Application</param>
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
-        public static AuthenticationManager CreateWithCredentials(string clientId, string username, SecureString password, string redirectUrl = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null)
+        // v============= HEU/LLM: Accept a callback for token acquisition diagnostics. ==========
+        public static AuthenticationManager CreateWithCredentials(string clientId, string username, SecureString password, string redirectUrl = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null)
+        // ^===================================================================
         {
-            return new AuthenticationManager(clientId, username, password, redirectUrl, azureEnvironment, tokenCacheCallback);
+            // v============= HEU/LLM: Pass the diagnostics callback on. ==========
+            return new AuthenticationManager(clientId, username, password, redirectUrl, azureEnvironment, tokenCacheCallback, tokenAcquisitionDiagnosticsCallback);
+            // ^===================================================================
         }
 
         /// <summary>
@@ -347,7 +355,9 @@ namespace PnP.Framework
         /// <param name="redirectUrl">Optional redirect URL to use for authentication as set up in the Azure AD Application</param>
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
-        public AuthenticationManager(string clientId, string username, SecureString password, string redirectUrl = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null) : this()
+        // v============= HEU/LLM: Accept a callback for token acquisition diagnostics. ==========
+        public AuthenticationManager(string clientId, string username, SecureString password, string redirectUrl = null, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null) : this()
+        // ^===================================================================
         {
             this.azureEnvironment = azureEnvironment;
             var azureADEndPoint = GetAzureADLoginEndPoint(azureEnvironment);
@@ -359,6 +369,9 @@ namespace PnP.Framework
             }
             this.username = username;
             this.password = password;
+            // v============= HEU/LLM: Keep the diagnostics callback for the token results. ==========
+            this.tokenAcquisitionDiagnosticsCallback = tokenAcquisitionDiagnosticsCallback;
+            // ^===================================================================
             publicClientApplication = builder.Build();
 
             // register tokencache if callback provided
@@ -439,11 +452,16 @@ namespace PnP.Framework
         /// <param name="deviceCodeCallback">The callback that will be called with device code information.</param>
         /// <param name="azureEnvironment">The azure environment to use. Defaults to AzureEnvironment.Production</param>
         /// <param name="tokenCacheCallback">If present, after setting up the base flow for authentication this callback will be called register a custom tokencache. See https://aka.ms/msal-net-token-cache-serialization.</param>
-        public AuthenticationManager(string clientId, string tenantId, Func<DeviceCodeResult, Task> deviceCodeCallback, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null) : this()
+        // v============= HEU/LLM: Accept a callback for token acquisition diagnostics. ==========
+        public AuthenticationManager(string clientId, string tenantId, Func<DeviceCodeResult, Task> deviceCodeCallback, AzureEnvironment azureEnvironment = AzureEnvironment.Production, Action<ITokenCache> tokenCacheCallback = null, Action<TokenAcquisitionDiagnostics> tokenAcquisitionDiagnosticsCallback = null) : this()
+        // ^===================================================================
         {
             this.azureEnvironment = azureEnvironment;
             var azureADEndPoint = GetAzureADLoginEndPoint(azureEnvironment);
             this.deviceCodeCallback = deviceCodeCallback;
+            // v============= HEU/LLM: Keep the diagnostics callback for the token results. ==========
+            this.tokenAcquisitionDiagnosticsCallback = tokenAcquisitionDiagnosticsCallback;
+            // ^===================================================================
 
             var builder = PublicClientApplicationBuilder.Create(clientId);
 
@@ -780,7 +798,9 @@ namespace PnP.Framework
             IAccount selectedAccount,
             AuthenticationResult authenticationResult,
             Exception exception,
-            bool willFallBackToInteractive = false)
+            // v============= HEU/LLM: Name the fallback flow of the login type. ==========
+            TokenAcquisitionFlow? fallbackFlow = null)
+            // ^===================================================================
         {
             try
             {
@@ -796,12 +816,51 @@ namespace PnP.Framework
                     tokenSource,
                     failureType,
                     errorCode,
-                    willFallBackToInteractive));
+                    // v============= HEU/LLM: Pass the fallback flow on. ==========
+                    fallbackFlow));
+                    // ^===================================================================
             }
             catch (Exception)
             {
             }
         }
+
+        // v============= HEU/LLM: Silent token first, then the fallback flow. Report both results. ==========
+        // Device login and credentials use this. A token cache from a different process can give the
+        // token without a new sign-in.
+        private async Task<AuthenticationResult> AcquireTokenSilentOrByFallbackAsync(
+            string[] scopes,
+            TokenAcquisitionFlow fallbackFlow,
+            Func<Task<AuthenticationResult>> acquireTokenByFallbackAsync,
+            CancellationToken cancellationToken)
+        {
+            var accounts = (await publicClientApplication.GetAccountsAsync().ConfigureAwait(false)).ToList();
+            IAccount selectedAccount = null;
+            try
+            {
+                selectedAccount = accounts.First();
+                var silentResult = await publicClientApplication.AcquireTokenSilent(scopes, selectedAccount).ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, true, accounts.Count, selectedAccount, silentResult, null);
+                return silentResult;
+            }
+            catch (Exception silentException)
+            {
+                NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, fallbackFlow: fallbackFlow);
+            }
+
+            try
+            {
+                var fallbackResult = await acquireTokenByFallbackAsync().ConfigureAwait(false);
+                NotifyTokenAcquisitionDiagnostics(fallbackFlow, true, accounts.Count, fallbackResult.Account, fallbackResult, null);
+                return fallbackResult;
+            }
+            catch (Exception fallbackException)
+            {
+                NotifyTokenAcquisitionDiagnostics(fallbackFlow, false, accounts.Count, selectedAccount, null, fallbackException);
+                throw;
+            }
+        }
+        // ^===================================================================
 
         /// <summary>
         /// Returns an access token for the given scopes.
@@ -819,17 +878,10 @@ namespace PnP.Framework
             {
                 case ClientContextType.AzureADCredentials:
                     {
-                        var accounts = await publicClientApplication.GetAccountsAsync().ConfigureAwait(false);
-                        try
-                        {
-                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-                        }
-                        catch
-                        {
-#pragma warning disable CS0618 // Type or member is obsolete
-                            authResult = await publicClientApplication.AcquireTokenByUsernamePassword(scopes, username, password).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-#pragma warning restore CS0618 // Type or member is obsolete
-                        }
+                        // v============= HEU/LLM: Silent token first, then user name and password. Report both results. ==========
+                        authResult = await AcquireTokenSilentOrByFallbackAsync(scopes, TokenAcquisitionFlow.UsernamePassword,
+                            () => AcquireTokenByUsernamePasswordAsync(scopes, cancellationToken), cancellationToken).ConfigureAwait(false);
+                        // ^===================================================================
                         break;
                     }
                 case ClientContextType.AzureADInteractive:
@@ -847,7 +899,9 @@ namespace PnP.Framework
                         catch (Exception silentException)
                         {
                             // HEU: written by LLM, 2026-08-10
-                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, willFallBackToInteractive: true);
+                            // v============= HEU/LLM: The fallback flow of the interactive login is the interactive flow. ==========
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, fallbackFlow: TokenAcquisitionFlow.Interactive);
+                            // ^===================================================================
                             var builder = publicClientApplication.AcquireTokenInteractive(scopes);
                             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                             {
@@ -905,15 +959,11 @@ namespace PnP.Framework
                     }
                 case ClientContextType.DeviceLogin:
                     {
-                        var accounts = await publicClientApplication.GetAccountsAsync().ConfigureAwait(false);
-                        try
-                        {
-                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-                        }
-                        catch
-                        {
-                            authResult = await publicClientApplication.AcquireTokenWithDeviceCode(scopes, deviceCodeCallback).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-                        }
+                        // v============= HEU/LLM: Silent token first, then device code. Report both results. ==========
+                        authResult = await AcquireTokenSilentOrByFallbackAsync(scopes, TokenAcquisitionFlow.DeviceCode,
+                            () => publicClientApplication.AcquireTokenWithDeviceCode(scopes, deviceCodeCallback).ExecuteAsync(cancellationToken),
+                            cancellationToken).ConfigureAwait(false);
+                        // ^===================================================================
                         break;
                     }
                 case ClientContextType.AzureOnBehalfOf:
@@ -1008,17 +1058,10 @@ namespace PnP.Framework
             {
                 case ClientContextType.AzureADCredentials:
                     {
-                        var accounts = await publicClientApplication.GetAccountsAsync().ConfigureAwait(false);
-                        try
-                        {
-                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-                        }
-                        catch
-                        {
-#pragma warning disable CS0618 // Type or member is obsolete
-                            authResult = await publicClientApplication.AcquireTokenByUsernamePassword(scopes, username, password).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-#pragma warning restore CS0618 // Type or member is obsolete
-                        }
+                        // v============= HEU/LLM: Silent token first, then user name and password. Report both results. ==========
+                        authResult = await AcquireTokenSilentOrByFallbackAsync(scopes, TokenAcquisitionFlow.UsernamePassword,
+                            () => AcquireTokenByUsernamePasswordAsync(scopes, cancellationToken), cancellationToken).ConfigureAwait(false);
+                        // ^===================================================================
                         if (authResult.AccessToken != null)
                         {
                             LookAtAuthResult_Heu(authResult);
@@ -1041,7 +1084,9 @@ namespace PnP.Framework
                         catch (Exception silentException)
                         {
                             // HEU: written by LLM, 2026-08-10
-                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, willFallBackToInteractive: true);
+                            // v============= HEU/LLM: The fallback flow of the interactive login is the interactive flow. ==========
+                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException, fallbackFlow: TokenAcquisitionFlow.Interactive);
+                            // ^===================================================================
                             var builder = publicClientApplication.AcquireTokenInteractive(scopes);
                             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                             {
@@ -1125,16 +1170,11 @@ namespace PnP.Framework
                     }
                 case ClientContextType.DeviceLogin:
                     {
-                        var accounts = await publicClientApplication.GetAccountsAsync().ConfigureAwait(false);
-
-                        try
-                        {
-                            authResult = await publicClientApplication.AcquireTokenSilent(scopes, accounts.First()).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-                        }
-                        catch
-                        {
-                            authResult = await publicClientApplication.AcquireTokenWithDeviceCode(scopes, deviceCodeCallback).ExecuteAsync(cancellationToken).ConfigureAwait(false);
-                        }
+                        // v============= HEU/LLM: Silent token first, then device code. Report both results. ==========
+                        authResult = await AcquireTokenSilentOrByFallbackAsync(scopes, TokenAcquisitionFlow.DeviceCode,
+                            () => publicClientApplication.AcquireTokenWithDeviceCode(scopes, deviceCodeCallback).ExecuteAsync(cancellationToken),
+                            cancellationToken).ConfigureAwait(false);
+                        // ^===================================================================
                         if (authResult.AccessToken != null)
                         {
                             LookAtAuthResult_Heu(authResult);
@@ -1269,18 +1309,16 @@ namespace PnP.Framework
                     {
                         ar = application.AcquireTokenSilent(scopes, selectedAccount).ExecuteAsync().GetAwaiter().GetResult();
                         // HEU: written by LLM, 2026-08-10
-                        if (ClientContextType.AzureADInteractive == contextType)
-                        {
-                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, true, accounts.Count, selectedAccount, ar, null);
-                        }
+                        // v============= HEU/LLM: Report each silent result. Only user logins give a diagnostics callback. ==========
+                        NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, true, accounts.Count, selectedAccount, ar, null);
+                        // ^===================================================================
                     }
                     catch (Exception silentException)
                     {
                         // HEU: written by LLM, 2026-08-10
-                        if (ClientContextType.AzureADInteractive == contextType)
-                        {
-                            NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException);
-                        }
+                        // v============= HEU/LLM: Report each silent result. Only user logins give a diagnostics callback. ==========
+                        NotifyTokenAcquisitionDiagnostics(TokenAcquisitionFlow.Silent, false, accounts.Count, selectedAccount, null, silentException);
+                        // ^===================================================================
                         throw;
                     }
                 }
@@ -1351,6 +1389,15 @@ namespace PnP.Framework
 
             return clientContext;
         }
+
+        // v============= HEU/LLM: The user name and password flow, the fallback of the credentials cases. ==========
+        private Task<AuthenticationResult> AcquireTokenByUsernamePasswordAsync(string[] scopes, CancellationToken cancellationToken)
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            return publicClientApplication.AcquireTokenByUsernamePassword(scopes, username, password).ExecuteAsync(cancellationToken);
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+        // ^===================================================================
 
         private static string GetKnownClientId(KnownClientId id)
         {

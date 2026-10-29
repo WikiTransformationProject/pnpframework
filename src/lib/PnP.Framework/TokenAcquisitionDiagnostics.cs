@@ -2,14 +2,16 @@ using Microsoft.Identity.Client;
 
 namespace PnP.Framework
 {
-    // HEU: written by LLM, 2026-08-10
+    // HEU: written by LLM, 2026-08-10, 2026-10-29
     public enum TokenAcquisitionFlow
     {
         Silent,
-        Interactive
+        Interactive,
+        DeviceCode,
+        UsernamePassword
     }
 
-    // HEU: written by LLM, 2026-08-10
+    // HEU: written by LLM, 2026-08-10, 2026-10-29
     public sealed class TokenAcquisitionDiagnostics
     {
         public TokenAcquisitionDiagnostics(
@@ -20,7 +22,7 @@ namespace PnP.Framework
             TokenSource? tokenSource,
             string failureType,
             string errorCode,
-            bool willFallBackToInteractive = false)
+            TokenAcquisitionFlow? fallbackFlow = null)
         {
             Flow = flow;
             Succeeded = succeeded;
@@ -29,7 +31,7 @@ namespace PnP.Framework
             TokenSource = tokenSource;
             FailureType = failureType;
             ErrorCode = errorCode;
-            WillFallBackToInteractive = willFallBackToInteractive;
+            FallbackFlow = fallbackFlow;
         }
 
         public TokenAcquisitionFlow Flow { get; }
@@ -39,6 +41,6 @@ namespace PnP.Framework
         public TokenSource? TokenSource { get; }
         public string FailureType { get; }
         public string ErrorCode { get; }
-        public bool WillFallBackToInteractive { get; }
+        public TokenAcquisitionFlow? FallbackFlow { get; }
     }
 }
