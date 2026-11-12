@@ -21,6 +21,10 @@ namespace Microsoft.SharePoint.Client
     /// </summary>
     public static partial class FileFolderExtensions
     {
+        // v============= HEU/LLM: Expose the byte count of an upload block ==========
+        public const int FileUploadBlockSize = 10 * 1024 * 1024;
+        // ^===================================================================
+
         /// <summary>
         /// Approves a file
         /// </summary>
@@ -1525,7 +1529,9 @@ namespace Microsoft.SharePoint.Client
                 throw new ArgumentException(string.Format(CoreResources.FileFolderExtensions_UploadFile_The_argument_must_be_a_single_file_name_and_cannot_contain_path_characters_, fileName), nameof(fileName));
 
             // 10 MB
-            int blockSize = 10 * 1024 * 1024;
+            // v============= HEU/LLM: Use the public upload block size ==========
+            int blockSize = FileUploadBlockSize;
+            // ^===================================================================
 
             File uploadFile = null;
             folder.EnsureProperty(f => f.ServerRelativePath);
