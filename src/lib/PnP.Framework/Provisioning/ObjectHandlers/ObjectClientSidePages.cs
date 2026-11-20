@@ -3,6 +3,9 @@ using Microsoft.SharePoint.News.DataModel;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using PnP.Core.Services;
+// v============= HEU/LLM: Read schema names already loaded by page creation. ==========
+using PnP.Core.QueryModel;
+// ^===================================================================
 using PnP.Framework.Diagnostics;
 using PnP.Framework.Provisioning.Model;
 using PnP.Framework.Provisioning.ObjectHandlers.Extensions;
@@ -81,7 +84,7 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                     // 7. POST ProcessQuery -> GetFileByServerRelativePath
 
                     // 2024-02-22: down from 7 to 6 calls
-                    var (_, parserActions, _) = Task.Run(() => PagePreCreator.PreCreatePageAsync(web, clientSidePage, pagesLibrary, getTemplateFolderName, (title, message) => {
+                    var (_, parserActions, _, _, _) = Task.Run(() => PagePreCreator.PreCreatePageAsync(web, clientSidePage, pagesLibrary, getTemplateFolderName, (title, message) => {
                         currentPageIndex++;
                         WriteSubProgress(title, message, currentPageIndex, template.ClientSidePages.Count);
 
@@ -469,7 +472,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                             // ==============================================================
                             var isNewlyCreatedPage = preCreatedPages.Contains(url);
                             // ==============================================================
-                            ListItemUtilities.UpdateListItem(pageListItem, parser, clientSidePage.FieldValues, isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion);
+                            // v============= HEU/LLM: Include the numeric creation time in this metadata update. ==========
+                            ListItemUtilities.UpdateListItem(pageListItem, parser, clientSidePage.FieldValues,
+                                isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion,
+                                typedValues: WikiTraccsPageCreationFields.GetTypedOverridesThatBypassPnPFieldConversion(clientSidePage.FieldValues));
+                            // ^===================================================================
                             return;
                         }
                         // ==========================================================================================
@@ -1191,7 +1198,11 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 // ==============================================================
                 var isNewlyCreatedPage = preCreatedPages.Contains(url);
                 // ==============================================================
-                ListItemUtilities.UpdateListItem(fileAfterSave.ListItemAllFields, parser, clientSidePage.FieldValues, isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion);
+                // v============= HEU/LLM: Include the numeric creation time in this metadata update. ==========
+                ListItemUtilities.UpdateListItem(fileAfterSave.ListItemAllFields, parser, clientSidePage.FieldValues,
+                    isNewlyCreatedPage ? ListItemUtilities.ListItemUpdateType.ForceUpdateOverwriteVersion : ListItemUtilities.ListItemUpdateType.UpdateOverwriteVersion,
+                    typedValues: WikiTraccsPageCreationFields.GetTypedOverridesThatBypassPnPFieldConversion(clientSidePage.FieldValues));
+                // ^===================================================================
                 isModerationEnabled = fileAfterSave.ListItemAllFields.ParentList.EnableModeration;
                 isMinorVersionEnabled = fileAfterSave.ListItemAllFields.ParentList.EnableMinorVersions;
             }
@@ -1264,6 +1275,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 web.Context.ExecuteQueryRetry();
                 fileAfterSave.ListItemAllFields.SetSecurity(parser, clientSidePage.Security, WriteMessage);
             }
+            // v============= HEU/LLM: Confirm a completed page write without another request. ==========
+            // written by LLM, 2026-11-15
+            clientSidePage.WikiTraccsPageWriteSucceeded = true;
+            // ^===================================================================
         }
 
 #nullable enable
@@ -1420,14 +1435,20 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
     }
 
 #nullable enable
-    public static class PagePreCreator
+    // v============= HEU/LLM: Keep pending creation metadata with the pre-creator. ==========
+    public static partial class PagePreCreator
+    // ^===================================================================
     {
         static readonly object _lock = new();
         // note: do NOT cache the actual file because pre-creation can be called from another thread and parallel to the actual page creation
-        static readonly Dictionary<(string siteUrl, string finalPageName), Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)>> preCreatedFileUrls = new();
+        // v============= HEU/LLM: Return primitive page identity and creation time across contexts. ==========
+        static readonly Dictionary<(string siteUrl, string finalPageName), Task<PageCreationInfo>> preCreatedFileUrls = new();
+        // ^===================================================================
 
         // note that "didExists" can mean anything of the following: an actual WikiTraccs page with this name existed; a previously created, unfinished, precreated page exists; pre-page creation was scheduled by a previous call (result kind of unclear!?)
-        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)> PreCreateStandardWikiTraccsPageAsync(
+        // v============= HEU/LLM: Expose the list item ID and actual creation time. ==========
+        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist, int? itemId, long? createdUtcMs)> PreCreateStandardWikiTraccsPageAsync(
+        // ^===================================================================
             Web web,
             string pageName,
             string pagesLibrary,
@@ -1441,7 +1462,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             return PreCreatePageAsync(web, csp, pagesLibrary, null, writeSubProgress);
         }
 
-        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)> PreCreatePageAsync(
+        // v============= HEU/LLM: Expose the list item ID and actual creation time. ==========
+        public static Task<(string? pageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist, int? itemId, long? createdUtcMs)> PreCreatePageAsync(
+        // ^===================================================================
             Web web,
             BaseClientSidePage clientSidePage,
             string pagesLibrary,
@@ -1453,27 +1476,42 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             var webUrlWithHost = $"{new Uri(web.Context.Url).GetLeftPart(UriPartial.Authority)}{serverRelativeWebUrl}";
             // ^===================================================================
             var pageName = ObjectClientSidePages.DeterminePageName(null, clientSidePage);
+            // v============= HEU/LLM: Reuse creation facts when the page is filled. ==========
+            // written by LLM, 2026-11-14
+            var cacheKey = (webUrlWithHost, $"{pagesLibrary.TrimEnd('/')}/{pageName}");
+            Task<PageCreationInfo> task;
+            bool wasScheduled;
+            // ^===================================================================
             lock (_lock)
             {
-                if (!preCreatedFileUrls.TryGetValue((webUrlWithHost, pageName), out var task))
+                // v============= HEU/LLM: Retain the first pre-creation result. ==========
+                // written by LLM, 2026-11-14
+                wasScheduled = preCreatedFileUrls.TryGetValue(cacheKey, out task);
+                if (!wasScheduled)
                 {
-                    task = PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress);
-                    preCreatedFileUrls[(webUrlWithHost, pageName)] = task;
+                    task = PreCreatePageAsyncImpl(
+                        web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress);
+                    preCreatedFileUrls[cacheKey] = task;
                 }
-                else
-                {
-                    task = Task.Run(async () =>
-                    {
-                        var (serverRelativePageUrl, parserActions, didExist) = await PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress).ConfigureAwait(false);
-                        // mark as "didExist"
-                        return (serverRelativePageUrl, parserActions, (bool?)true);
-                    });
-                }
-                return task;
+                // ^===================================================================
             }
+            // v============= HEU/LLM: Stage fields for the existing page metadata write. ==========
+            // written by LLM, 2026-11-14
+            return CompletePreCreationAsync(task, wasScheduled,
+                () => PreCreatePageAsyncImpl(web, clientSidePage, pagesLibrary, getTemplatesFolderName, writeSubProgress),
+                clientSidePage, created =>
+                {
+                    lock (_lock)
+                    {
+                        preCreatedFileUrls[cacheKey] = Task.FromResult(created);
+                    }
+                });
+            // ^===================================================================
         }
 
-        private static async Task<(string? serverRelativePageUrl, List<Action<TokenParser, Web>> parserActions, bool? didExist)> PreCreatePageAsyncImpl(
+        // v============= HEU/LLM: Expose the list item ID and actual creation time. ==========
+        private static async Task<PageCreationInfo> PreCreatePageAsyncImpl(
+        // ^===================================================================
             Web web,
             BaseClientSidePage clientSidePage,
             string pagesLibrary,
@@ -1484,7 +1522,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             if (clientSidePage.PromoteAsTemplate && null == getTemplatesFolderName)
             {
                 // not supported
-                return (null, parserActions, null);
+                // v============= HEU/LLM: Unsupported pages have no creation identity. ==========
+                return new PageCreationInfo((null, parserActions, null, null, null));
+                // ^===================================================================
             }
             string pageName = ObjectClientSidePages.DeterminePageName(null, clientSidePage);
             if (string.IsNullOrWhiteSpace(pageName))
@@ -1509,10 +1549,16 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
             url = UrlUtility.Combine(serverRelativeWebUrl, url);
 
             var exists = true;
+            // v============= HEU/LLM: Retain the primitive ID from the existing-page read. ==========
+            int? existingItemId = null;
+            // ^===================================================================
             try
             {
                 var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath, f => f.Exists);
+                // v============= HEU/LLM: Expose the ID of an already present page too. ==========
+                // written by LLM, 2026-11-14
+                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath, f => f.Exists, f => f.ListItemAllFields.Id);
+                // ^===================================================================
                 await web.Context.ExecuteQueryRetryAsync().ConfigureAwait(false);
 
                 var val1 = file.ServerRelativePath.DecodedUrl.Substring(serverRelativeWebUrl.Length).TrimStart("/".ToCharArray());
@@ -1524,6 +1570,10 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 // parser.AddToken(new PageUniqueIdEncodedToken(web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
 
                 exists = file.Exists;
+                // v============= HEU/LLM: Keep only the primitive identity outside this context. ==========
+                // written by LLM, 2026-11-14
+                existingItemId = file.ListItemAllFields.Id;
+                // ^===================================================================
             }
             catch (ServerException ex)
             {
@@ -1569,8 +1619,18 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 url = UrlUtility.Combine(serverRelativeWebUrl, url);
 
                 var file = web.GetFileByServerRelativePath(ResourcePath.FromDecodedUrl(url));
-                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath);
+                // v============= HEU/LLM: Read the server creation instant before source dates replace it. ==========
+                // written by LLM, 2026-11-14
+                web.Context.Load(file, f => f.UniqueId, f => f.ServerRelativePath, f => f.TimeCreated, f => f.ListItemAllFields.Id);
+                // ^===================================================================
                 await web.Context.ExecuteQueryRetryAsync().ConfigureAwait(false);
+
+                // v============= HEU/LLM: Retain creation time for the content metadata write. ==========
+                // written by LLM, 2026-11-14
+                var createdUtcMs = new DateTimeOffset(DateTime.SpecifyKind(file.TimeCreated, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+                var availableCreationFields = page.PageListItem.ParentList.Fields.AsRequested()
+                    .Select(field => field.InternalName);
+                // ^===================================================================
 
                 // Fill token
                 // parser.AddToken(new PageUniqueIdToken(       web, file.ServerRelativePath.DecodedUrl.Substring(web.ServerRelativeUrl.Length).TrimStart("/".ToCharArray()), file.UniqueId));
@@ -1580,10 +1640,15 @@ namespace PnP.Framework.Provisioning.ObjectHandlers
                 parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdToken(otherWeb, val1, uniqueId1)));
                 parserActions.Add((parser, otherWeb) => parser.AddToken(new PageUniqueIdEncodedToken(otherWeb, val1, uniqueId1)));
 
-                return (url, parserActions, false);
+                // v============= HEU/LLM: Return actual identity and the original server creation instant. ==========
+                return new PageCreationInfo((url, parserActions, false, file.ListItemAllFields.Id, createdUtcMs),
+                    availableCreationFields);
+                // ^===================================================================
             }
 
-            return (url, parserActions, true);
+            // v============= HEU/LLM: Do not infer a historical target creation time from an existing page. ==========
+            return new PageCreationInfo((url, parserActions, true, existingItemId, null));
+            // ^===================================================================
         }        
     }    
 #nullable restore

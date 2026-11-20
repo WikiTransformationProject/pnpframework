@@ -265,7 +265,9 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
             ForceUpdateOverwriteVersion
         }
 
-        public static void UpdateListItem(ListItem item, TokenParser parser, IDictionary<string, string> valuesToSet, ListItemUpdateType updateType, bool SkipExecuteQuery = false)
+        // v============= HEU/LLM: Accept typed values in the existing metadata update. ==========
+        public static void UpdateListItem(ListItem item, TokenParser parser, IDictionary<string, string> valuesToSet, ListItemUpdateType updateType, bool SkipExecuteQuery = false, IDictionary<string, object> typedValues = null)
+        // ^===================================================================
         {
             var itemValues = new List<FieldUpdateValue>();
 
@@ -385,6 +387,14 @@ namespace PnP.Framework.Provisioning.ObjectHandlers.Utilities
                         }
                     }
 
+                    // v============= HEU/LLM: Keep supplied number values numeric in this write. ==========
+                    // written by LLM, 2026-11-14
+                    if (typedValues != null && typedValues.TryGetValue(key, out var typedValue))
+                    {
+                        itemValues.Add(new FieldUpdateValue(key, typedValue));
+                        continue;
+                    }
+                    // ^===================================================================
                     switch (field.TypeAsString)
                     {
                         case "User":
